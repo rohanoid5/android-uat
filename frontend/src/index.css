@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-100 font-sans;
+  }
+}
+
+.emulator-screen {
+  @apply border-2 border-gray-300 rounded-lg shadow-lg bg-black;
+  aspect-ratio: 9/16;
+  max-height: 600px;
+}
+
+.control-button {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+}
+
+.control-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.control-button.primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.control-button.secondary {
+  @apply bg-gray-600 text-white hover:bg-gray-700;
+}
+
+.control-button.danger {
+  @apply bg-red-600 text-white hover:bg-red-700;
+}
+
+.control-button.success {
+  @apply bg-green-600 text-white hover:bg-green-700;
+}

@@ -1,0 +1,119 @@
+INFO         | Android emulator version 35.6.11.0 (build_id 13610412) (CL:N/A)
+INFO         | Graphics backend: gfxstream
+INFO         | Found systemPath /Users/rohandey/Android/Sdk/system-images/android-34/google_apis/x86_64/
+##############################################################################
+##                        WARNING - ACTION REQUIRED                         ##
+##  Consider using the '-metrics-collection' flag to help improve the       ##
+##  emulator by sending anonymized usage data. Or use the '-no-metrics'     ##
+##  flag to bypass this warning and turn off the metrics collection.        ##
+##  In a future release this warning will turn into a one-time blocking     ##
+##  prompt to ask for explicit user input regarding metrics collection.     ##
+##                                                                          ##
+##  Please see '-help-metrics-collection' for more details. You can use     ##
+##  '-metrics-to-file' or '-metrics-to-console' flags to see what type of   ##
+##  data is being collected by emulator as part of usage statistics.        ##
+##############################################################################
+INFO         | Guest GLES Driver: Auto (ext controls)
+library_mode host gpu mode host
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `WebControllerEmulator` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `WebControllerEmulator` are passed
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `WebControllerEmulator` are met
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_btn_xr_environment_living_room_day_clicked() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_btn_xr_environment_living_room_night_clicked() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_new_posture_requested(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_posture_selection_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_new_resizable_requested(PresetEmulatorSizeType) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_resizable_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_xr_environment_mode_changed(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_xr_environment_mode_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_xr_input_mode_changed(int) (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_dismiss_xr_input_mode_dialog() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_sleep_timer_done() (:0, )
+INFO         | Warning: QMetaObject::connectSlotsByName: No matching signal for on_unfold_timer_done() (:0, )
+INFO         | Storing crashdata in: /tmp/android-rohandey/emu-crash-35.6.11.db, detection is enabled for process: 49469
+INFO         | Initializing hardware OpenGLES emulation support
+I0725 15:53:49.147183 49e3bc0 opengles.cpp:307] android_startOpenglesRenderer: gpu info
+I0725 15:53:49.147258 49e3bc0 opengles.cpp:308] GPU #1
+  Make: 8086
+  Model: 3ea6
+  Device ID: 3ea6
+
+I0725 15:53:49.147771 49e3bc0 HealthMonitor.cpp:275] HealthMonitor disabled.
+I0725 15:53:49.148132 49e3bc0 SharedLibrary.cpp:76] SharedLibrary::open for [/System/Library/Frameworks/OpenGL.framework/OpenGL]: not found in map, open for the first time
+I0725 15:53:49.148561 49e3bc0 SharedLibrary.cpp:186] SharedLibrary::open for [/System/Library/Frameworks/OpenGL.framework/OpenGL] (posix): begin
+I0725 15:53:49.148627 49e3bc0 SharedLibrary.cpp:215] SharedLibrary::open for [/System/Library/Frameworks/OpenGL.framework/OpenGL] (posix,darwin): call dlopen
+I0725 15:53:49.148782 49e3bc0 SharedLibrary.cpp:262] SharedLibrary::open succeeded for [/System/Library/Frameworks/OpenGL.framework/OpenGL].
+I0725 15:53:49.235558 49e3bc0 SharedLibrary.cpp:76] SharedLibrary::open for [libshadertranslator.dylib]: not found in map, open for the first time
+I0725 15:53:49.235602 49e3bc0 SharedLibrary.cpp:186] SharedLibrary::open for [libshadertranslator.dylib] (posix): begin
+I0725 15:53:49.235614 49e3bc0 SharedLibrary.cpp:215] SharedLibrary::open for [libshadertranslator.dylib] (posix,darwin): call dlopen
+I0725 15:53:49.650340 49e3bc0 SharedLibrary.cpp:262] SharedLibrary::open succeeded for [libshadertranslator.dylib].
+I0725 15:53:49.671983 49e3bc0 FrameBuffer.cpp:460] Graphics Adapter Vendor Google (Intel Inc.)
+I0725 15:53:49.672018 49e3bc0 FrameBuffer.cpp:461] Graphics Adapter Android Emulator OpenGL ES Translator (Intel(R) Iris(TM) Plus Graphics 645)
+I0725 15:53:49.672026 49e3bc0 FrameBuffer.cpp:462] Graphics API Version OpenGL ES 3.0 (4.1 INTEL-23.0.26)
+I0725 15:53:49.672033 49e3bc0 FrameBuffer.cpp:463] Graphics API Extensions GL_OES_EGL_sync GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_depth24 GL_OES_depth32 GL_OES_element_index_uint GL_OES_texture_float GL_OES_texture_float_linear GL_OES_compressed_paletted_texture GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth_texture GL_OES_texture_npot GL_OES_rgb8_rgba8 GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_texture_format_BGRA8888 GL_APPLE_texture_format_BGRA8888 
+I0725 15:53:49.672039 49e3bc0 FrameBuffer.cpp:464] Graphics Device Extensions N/A
+INFO         | Sending adb public key [QAAAANcYeMYZpXWEBrhuC2lsDBsBVNtQrWoU5tXOKmlGRLSjiEdCeC4MYJP3oOXo910q1sFxOJFtDmA9xrfmm1MUjKjRLQ5a0bIaLzTzVj8OQhed8B4yF1/eiAG0JNLutvkIiBZCmeIzB9Z3iyr0th1V9adkr5Fiw/W2bGVRJ0oNtJwbsQ9UtQ5FlLGhWJd/KLy/o1nATLdGqLYLSrsdMdwwsH1/2da/omlEUo3MeyAnTrrrECKSHAzesd3kHs7DlJ7+G5Zh+r4EPsTCWr6hHQyn6iiUM5b8SWh07p8ZdrmxWAVB7h+VP7PwGiVbXeL7RwHZ7VTvVqVENFC78KzXh64LYY5bZ93asURs6jOFAYJdD3VwdHtRRrIy8YAPXs0wNSFDrcocMEDnuRD+yYQa4Wfth1Ohcs5hINpX1Amv8jS/2I0nCl0LPCfCjW8tJJcO+kaXJ5U75KvEpjuTbLoZh66baLm3mIMn9mrwRLcfl9DZeTbRM74+1ihjLaMm6udLPnPuwaAIcvLBpBe5wlTmg8Kuy95ZoKwD6u7nIAJwzCK8epDxC2AlhuR12GeVgjQ6Ph9YYC9VMch4AOinnz+BiEyHzbICil51nnva3oT3M/ZFrwX2Slg5tKWOyDIlMu0OaCxiSXlrfr3yI9Ojv5EPcMiENmgm5NOopJVWOayaVBKg+ko8hQBrcgEAAQA= rohandey@unknown]
+I0725 15:53:49.679292 49e3bc0 userspace-boot-properties.cpp:760] Userspace boot properties:
+I0725 15:53:49.679305 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.boot_devices=pci0000:00/0000:00:03.0 pci0000:00/0000:00:06.0
+I0725 15:53:49.679312 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.dalvik.vm.heapsize=512m
+I0725 15:53:49.679317 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.debug.hwui.renderer=skiagl
+I0725 15:53:49.679323 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.hardware=ranchu
+I0725 15:53:49.679328 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.hardware.gltransport=pipe
+I0725 15:53:49.679333 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.logcat=*:V
+I0725 15:53:49.679338 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.opengles.version=196608
+I0725 15:53:49.679343 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu=1
+I0725 15:53:49.679349 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.adb.pubkey=QAAAANcYeMYZpXWEBrhuC2lsDBsBVNtQrWoU5tXOKmlGRLSjiEdCeC4MYJP3oOXo910q1sFxOJFtDmA9xrfmm1MUjKjRLQ5a0bIaLzTzVj8OQhed8B4yF1/eiAG0JNLutvkIiBZCmeIzB9Z3iyr0th1V9adkr5Fiw/W2bGVRJ0oNtJwbsQ9UtQ5FlLGhWJd/KLy/o1nATLdGqLYLSrsdMdwwsH1/2da/omlEUo3MeyAnTrrrECKSHAzesd3kHs7DlJ7+G5Zh+r4EPsTCWr6hHQyn6iiUM5b8SWh07p8ZdrmxWAVB7h+VP7PwGiVbXeL7RwHZ7VTvVqVENFC78KzXh64LYY5bZ93asURs6jOFAYJdD3VwdHtRRrIy8YAPXs0wNSFDrcocMEDnuRD+yYQa4Wfth1Ohcs5hINpX1Amv8jS/2I0nCl0LPCfCjW8tJJcO+kaXJ5U75KvEpjuTbLoZh66baLm3mIMn9mrwRLcfl9DZeTbRM74+1ihjLaMm6udLPnPuwaAIcvLBpBe5wlTmg8Kuy95ZoKwD6u7nIAJwzCK8epDxC2AlhuR12GeVgjQ6Ph9YYC9VMch4AOinnz+BiEyHzbICil51nnva3oT3M/ZFrwX2Slg5tKWOyDIlMu0OaCxiSXlrfr3yI9Ojv5EPcMiENmgm5NOopJVWOayaVBKg+ko8hQBrcgEAAQA= rohandey@unknown
+I0725 15:53:49.679374 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.avd_name=WebControllerEmulator
+I0725 15:53:49.679382 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.camera_hq_edge_processing=0
+I0725 15:53:49.679387 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.camera_protocol_ver=1
+I0725 15:53:49.679392 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.cpuvulkan.version=4202496
+I0725 15:53:49.679397 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.gltransport.drawFlushInterval=800
+I0725 15:53:49.679402 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.gltransport.name=pipe
+I0725 15:53:49.679408 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.hwcodec.avcdec=2
+I0725 15:53:49.679413 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.hwcodec.hevcdec=2
+I0725 15:53:49.679419 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.hwcodec.vpxdec=2
+I0725 15:53:49.679423 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.settings.system.screen_off_timeout=2147483647
+I0725 15:53:49.679429 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.virtiowifi=1
+I0725 15:53:49.679433 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.qemu.vsync=60
+I0725 15:53:49.679438 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.serialno=EMULATOR35X6X11X0
+I0725 15:53:49.679443 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.vbmeta.digest=451e57ed688ff746d2c636d52169ade253e2bc5bb30a5c3ff23679ca15d3bcd3
+I0725 15:53:49.679448 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.vbmeta.hash_alg=sha256
+I0725 15:53:49.679453 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.vbmeta.size=6656
+I0725 15:53:49.679458 49e3bc0 userspace-boot-properties.cpp:764]   androidboot.veritymode=enforcing
+INFO         | Monitoring duration of emulator setup.
+WARNING      | The emulator now requires a signed jwt token for gRPC access! Use the -grpc flag if you really want an open unprotected grpc port
+INFO         | Using security allow list from: /Users/rohandey/Android/Sdk/emulator/lib/emulator_access.json
+WARNING      | *** Basic token auth should only be used by android-studio ***
+INFO         | The active JSON Web Key Sets can be found here: /Users/rohandey/Library/Caches/TemporaryItems/avd/running/49469/jwks/71a4a43b-16e8-4ae4-aabe-f1ac1644cc9b/active.jwk
+INFO         | Scanning /Users/rohandey/Library/Caches/TemporaryItems/avd/running/49469/jwks/71a4a43b-16e8-4ae4-aabe-f1ac1644cc9b for jwk keys.
+INFO         | Started GRPC server at 127.0.0.1:8554, security: Local, auth: +token
+INFO         | Advertising in: /Users/rohandey/Library/Caches/TemporaryItems/avd/running/pid_49469.ini
+I0725 15:53:50.367579 ae63000 FrameBuffer.cpp:2805] Setting display: 0 configuration to: 1080x2280, dpi: 440x440 
+I0725 15:53:50.367624 ae63000 FrameBuffer.cpp:2818] setDisplayActiveConfig 0
+INFO         | Checking system compatibility:
+INFO         |   Checking: hasSufficientDiskSpace
+INFO         |      Ok: Disk space requirements to run avd: `WebControllerEmulator` are met
+INFO         |   Checking: hasSufficientHwGpu
+INFO         |      Ok: Hardware GPU requirements to run avd: `WebControllerEmulator` are passed
+INFO         |   Checking: hasSufficientSystem
+INFO         |      Ok: System requirements to run avd: `WebControllerEmulator` are met
+USER_INFO    | Emulator is performing a full startup. This may take upto two minutes, or more.
+WARNING      | Failed to process .ini file /Users/rohandey/.android/emu-update-last-check.ini for reading.
+WARNING      | Failed to process .ini file /Users/rohandey/.android/emu-update-last-check.ini for reading.
+WARNING      | adb command '/Users/rohandey/Android/Sdk/platform-tools/adb -s emulator-5554 shell am start-foreground-service -e meter on com.android.emulator.radio.config/.MeterService ' failed: 'adb: device offline'
+INFO         | Activated packet streamer for bluetooth emulation
+INFO         | Boot completed in 203881 ms
+INFO         | Increasing screen off timeout, logcat buffer size to 2M.
+INFO         | Warning: skipping QEventPoint(id=3 ts=0 pos=0,0 scn=176.354,294.899 gbl=176.354,294.899 Released ellipse=(1x1 ∡ 0) vel=0,0 press=-176.354,-294.899 last=-176.354,-294.899 Δ 176.354,294.899) : no target window (:0, )
+INFO         | Warning: skipping QEventPoint(id=1 ts=0 pos=0,0 scn=246.387,774.765 gbl=246.387,774.765 Released ellipse=(1x1 ∡ 0) vel=0,0 press=-246.387,-774.765 last=-246.387,-774.765 Δ 246.387,774.765) : no target window (:0, )
+INFO         | Warning: skipping QEventPoint(id=1 ts=0 pos=0,0 scn=310.67,618.8 gbl=310.67,618.8 Released ellipse=(1x1 ∡ 0) vel=0,0 press=-310.67,-618.8 last=-310.67,-618.8 Δ 310.67,618.8) : no target window (:0, )
+INFO         | Wait for emulator (pid 49469) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+
+USER_INFO    | Snapshots have been disabled by the user, save request is ignored.
+INFO         | Wait for emulator (pid 49469) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+
+E0725 16:15:58.793514 49e3bc0 DisplaySurfaceGl.cpp:121] Failed to restore previous context: 12297
