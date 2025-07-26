@@ -11,10 +11,10 @@ function EmulatorDashboard({ emulator }) {
   useEffect(() => {
     if (socket && emulator) {
       // Request screen streaming for this emulator
-      socket.emit("start-screen-capture", { emulatorId: emulator.id });
+      socket.emit("start-screen-capture", emulator.id);
 
       return () => {
-        socket.emit("stop-screen-capture", { emulatorId: emulator.id });
+        socket.emit("stop-screen-capture", emulator.id);
       };
     }
   }, [socket, emulator]);

@@ -151,6 +151,10 @@ io.on("connection", (socket) => {
       typeof emulatorName,
       emulatorName
     );
+    console.log(
+      `Raw emulatorName data:`,
+      JSON.stringify(emulatorName, null, 2)
+    );
     screenCaptureService.startCapture(emulatorName, socket);
   });
 

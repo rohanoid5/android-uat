@@ -22,10 +22,19 @@ class ScreenCaptureService {
 
   startCapture(emulatorName, socket) {
     // Ensure emulatorName is a string to prevent [object Object] issues
-    const emulatorNameStr =
-      typeof emulatorName === "string"
-        ? emulatorName
-        : JSON.stringify(emulatorName);
+    let emulatorNameStr;
+    if (typeof emulatorName === "string") {
+      emulatorNameStr = emulatorName;
+    } else if (typeof emulatorName === "object" && emulatorName.emulatorId) {
+      // Handle case where an object with emulatorId is passed
+      emulatorNameStr = emulatorName.emulatorId;
+    } else if (typeof emulatorName === "object" && emulatorName.name) {
+      // Handle case where an object with name is passed
+      emulatorNameStr = emulatorName.name;
+    } else {
+      // Fallback - extract any string property or use string conversion
+      emulatorNameStr = String(emulatorName);
+    }
 
     // Always stop any existing capture for this socket first
     if (this.captureProcesses.has(socket.id)) {
