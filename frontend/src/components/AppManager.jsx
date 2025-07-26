@@ -6,6 +6,8 @@ import {
   PlayIcon,
   ArrowUpTrayIcon,
   MagnifyingGlassIcon,
+  ArrowDownTrayIcon,
+  RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
 import axios from "axios";
 
@@ -15,10 +17,14 @@ function AppManager({ emulator }) {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [preinstallApks, setPreinstallApks] = useState([]);
+  const [preinstalling, setPreinstalling] = useState(false);
+  const [preinstallResult, setPreinstallResult] = useState(null);
 
   useEffect(() => {
     if (emulator) {
       fetchInstalledApps();
+      fetchPreinstallApks();
     }
   }, [emulator]);
 
@@ -70,6 +76,50 @@ function AppManager({ emulator }) {
       );
     } catch (error) {
       alert("Failed to launch app: " + error.message);
+    }
+  };
+
+  const fetchPreinstallApks = async () => {
+    try {
+      const response = await axios.get("/api/preinstall/apps");
+      setPreinstallApks(response.data);
+    } catch (error) {
+      console.error("Failed to fetch preinstall APKs:", error);
+    }
+  };
+
+  const handlePreinstall = async () => {
+    if (!emulator) return;
+
+    setPreinstalling(true);
+    try {
+      const response = await axios.post(
+        `/api/emulators/${emulator.id}/preinstall`
+      );
+      setPreinstallResult(response.data);
+      // Refresh installed apps list
+      await fetchInstalledApps();
+    } catch (error) {
+      console.error("Failed to preinstall apps:", error);
+      setPreinstallResult({
+        installed: [],
+        failed: [{ name: "preinstall", error: error.message }],
+      });
+    } finally {
+      setPreinstalling(false);
+    }
+  };
+
+  const handleLaunchPreinstalled = async () => {
+    if (!emulator) return;
+
+    try {
+      const response = await axios.post(
+        `/api/emulators/${emulator.id}/launch-preinstalled`
+      );
+      console.log("Launched preinstalled app:", response.data);
+    } catch (error) {
+      console.error("Failed to launch preinstalled app:", error);
     }
   };
 
@@ -134,6 +184,71 @@ function AppManager({ emulator }) {
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
+
+      {/* Preinstall Section */}
+      {preinstallApks.length > 0 && (
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h4 className="font-medium text-blue-900">Quick Install Apps</h4>
+              <p className="text-sm text-blue-700">
+                {preinstallApks.length} APK
+                {preinstallApks.length !== 1 ? "s" : ""} available for quick
+                installation
+              </p>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handlePreinstall}
+                disabled={preinstalling}
+                className={`control-button primary flex items-center ${
+                  preinstalling ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                {preinstalling ? "Installing..." : "Install All"}
+              </button>
+              <button
+                onClick={handleLaunchPreinstalled}
+                className="control-button secondary flex items-center"
+              >
+                <RocketLaunchIcon className="h-4 w-4 mr-2" />
+                Launch App
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {preinstallApks.map((apk, index) => (
+              <span
+                key={index}
+                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+              >
+                {apk.name}
+              </span>
+            ))}
+          </div>
+
+          {/* Preinstall Results */}
+          {preinstallResult && (
+            <div className="mt-3 p-3 bg-white rounded border">
+              <div className="text-sm">
+                {preinstallResult.installed.length > 0 && (
+                  <div className="text-green-600 mb-1">
+                    ✅ Installed: {preinstallResult.installed.join(", ")}
+                  </div>
+                )}
+                {preinstallResult.failed.length > 0 && (
+                  <div className="text-red-600">
+                    ❌ Failed:{" "}
+                    {preinstallResult.failed.map((f) => f.name).join(", ")}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Apps List */}
       {loading ? (

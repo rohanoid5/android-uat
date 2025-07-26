@@ -285,7 +285,197 @@ const handleSwipe = (startCoords, endCoords) => {
 
 ---
 
-### 3. EmulatorContext
+### 3. AppManager Component
+
+**File**: `src/components/AppManager.jsx`
+
+**Purpose**: Manages Android applications on emulator instances, including installation, launching, and preinstallation features
+
+#### Features
+- ✅ Upload and install APK files manually
+- ✅ View list of installed applications
+- ✅ Launch installed applications
+- ✅ Uninstall user-installed apps
+- ✅ **APK preinstallation** from `/apps` directory
+- ✅ **Bulk app installation** with status tracking
+- ✅ **Quick Install UI** for manual preinstallation
+- ✅ **Automatic app launching** with smart detection
+- ✅ Search and filter installed applications
+
+#### Props
+```javascript
+interface AppManagerProps {
+  emulator: {
+    id: string;
+    name: string;
+    status: string;
+  };
+}
+```
+
+#### Key State Variables
+```javascript
+const [apps, setApps] = useState([]);                    // Installed apps list
+const [searchTerm, setSearchTerm] = useState("");        // Search filter
+const [uploading, setUploading] = useState(false);       // Upload status
+const [preinstallApks, setPreinstallApks] = useState([]); // Available APKs
+const [preinstalling, setPreinstalling] = useState(false); // Installation status
+const [preinstallResult, setPreinstallResult] = useState(null); // Installation results
+```
+
+#### Key Methods
+
+**APK Preinstallation Methods:**
+```javascript
+// Fetch available APKs from /apps directory
+const fetchPreinstallApks = async () => {
+  const response = await axios.get("/api/preinstall/apps");
+  setPreinstallApks(response.data);
+};
+
+// Install all APKs from apps directory
+const handlePreinstall = async () => {
+  setPreinstalling(true);
+  const response = await axios.post(`/api/emulators/${emulator.id}/preinstall`);
+  setPreinstallResult(response.data);
+  await fetchInstalledApps(); // Refresh apps list
+  setPreinstalling(false);
+};
+
+// Launch first preinstalled app automatically
+const handleLaunchPreinstalled = async () => {
+  const response = await axios.post(
+    `/api/emulators/${emulator.id}/launch-preinstalled`
+  );
+  console.log("Launched preinstalled app:", response.data);
+};
+```
+
+**Standard App Management:**
+```javascript
+// Install APK file via upload
+const handleFileUpload = async (event) => {
+  const file = event.target.files[0];
+  const formData = new FormData();
+  formData.append("apk", file);
+  
+  await axios.post(`/api/emulators/${emulator.id}/apps/install`, formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  
+  await fetchInstalledApps();
+};
+
+// Launch installed application
+const handleLaunchApp = async (packageName) => {
+  await axios.post(`/api/emulators/${emulator.id}/apps/${packageName}/launch`);
+};
+
+// Uninstall user application
+const handleUninstallApp = async (packageName) => {
+  await axios.delete(`/api/emulators/${emulator.id}/apps/${packageName}`);
+  await fetchInstalledApps();
+};
+```
+
+#### UI Structure
+
+**Preinstallation Section:**
+```jsx
+{preinstallApks.length > 0 && (
+  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+    <div className="flex items-center justify-between mb-3">
+      <div>
+        <h4 className="font-medium text-blue-900">Quick Install Apps</h4>
+        <p className="text-sm text-blue-700">
+          {preinstallApks.length} APK{preinstallApks.length !== 1 ? "s" : ""} 
+          available for quick installation
+        </p>
+      </div>
+      <div className="flex space-x-2">
+        <button onClick={handlePreinstall} disabled={preinstalling}>
+          {preinstalling ? "Installing..." : "Install All"}
+        </button>
+        <button onClick={handleLaunchPreinstalled}>
+          Launch App
+        </button>
+      </div>
+    </div>
+    
+    {/* APK File List */}
+    <div className="flex flex-wrap gap-2">
+      {preinstallApks.map((apk, index) => (
+        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+          {apk.name}
+        </span>
+      ))}
+    </div>
+    
+    {/* Installation Results */}
+    {preinstallResult && (
+      <div className="mt-3 p-3 bg-white rounded border">
+        {preinstallResult.installed.length > 0 && (
+          <div className="text-green-600 mb-1">
+            ✅ Installed: {preinstallResult.installed.join(", ")}
+          </div>
+        )}
+        {preinstallResult.failed.length > 0 && (
+          <div className="text-red-600">
+            ❌ Failed: {preinstallResult.failed.map(f => f.name).join(", ")}
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+)}
+```
+
+**App List Section:**
+```jsx
+<div className="space-y-3">
+  {filteredApps.map((app) => (
+    <div key={app.packageName} className="bg-gray-50 rounded-lg p-4 flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+          {app.icon ? (
+            <img src={app.icon} alt={app.name} className="w-8 h-8 rounded" />
+          ) : (
+            <span className="text-blue-600 text-xl">📱</span>
+          )}
+        </div>
+        <div>
+          <h4 className="font-medium text-gray-900">{app.name}</h4>
+          <p className="text-sm text-gray-600">{app.packageName}</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <button onClick={() => handleLaunchApp(app.packageName)}>
+          Launch
+        </button>
+        {app.isUserApp && (
+          <button onClick={() => handleUninstallApp(app.packageName)}>
+            Uninstall
+          </button>
+        )}
+      </div>
+    </div>
+  ))}
+</div>
+```
+
+#### Styling Classes
+- `control-button primary` - Primary action buttons (Install All)
+- `control-button secondary` - Secondary actions (Launch App)
+- `bg-blue-50` - Preinstallation section background
+- `bg-gray-50` - Individual app item background
+- `text-blue-800` - APK file tags
+- `text-green-600` - Success messages
+- `text-red-600` - Error messages
+
+---
+
+### 4. EmulatorContext
 
 **File**: `src/context/EmulatorContext.jsx`
 

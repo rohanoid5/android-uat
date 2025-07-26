@@ -22,7 +22,14 @@ A comprehensive web-based platform for managing and controlling Android emulator
 - **App installation** and launching capabilities
 - **Device information** display and monitoring
 
-### 🔧 Developer-Friendly
+### � APK Preinstallation
+- **Automatic APK installation** from `/apps` directory when emulators start
+- **Bulk app deployment** for efficient testing workflows
+- **Quick Install UI** for manual preinstallation triggers
+- **Automatic app launching** with smart package detection
+- **Installation status tracking** with detailed success/failure reporting
+
+### �🔧 Developer-Friendly
 - **WebSocket-based** real-time communication
 - **RESTful API** for programmatic access
 - **Auto-detection** of system architecture and Java paths
@@ -109,7 +116,24 @@ Access the application at:
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:3001
 
-### 4. Create Your First Emulator
+### 4. Setup APK Preinstallation (Optional)
+
+For automatic app installation when emulators start:
+
+```bash
+# Create apps directory
+mkdir apps
+
+# Place your APK files in the apps directory
+cp /path/to/your/app.apk apps/
+```
+
+**Features:**
+- APKs in `/apps` directory are automatically installed when emulators start
+- Use the "Quick Install Apps" section in the UI for manual installation
+- Supports multiple APK files for bulk deployment
+
+### 5. Create Your First Emulator
 
 1. Open the web interface
 2. Click "Create Emulator"
@@ -152,6 +176,27 @@ socket.on('screen-capture', (base64ImageData) => {
   const img = document.getElementById('emulator-screen');
   img.src = `data:image/png;base64,${base64ImageData}`;
 });
+```
+
+### APK Preinstallation
+
+```bash
+# Get available APKs for preinstallation
+curl http://localhost:3001/api/preinstall/apps
+
+# Preinstall all APKs on an emulator
+curl -X POST http://localhost:3001/api/emulators/MyTestDevice/preinstall
+
+# Launch preinstalled app automatically
+curl -X POST http://localhost:3001/api/emulators/MyTestDevice/launch-preinstalled
+```
+
+**Example Response:**
+```json
+{
+  "installed": ["app-debug.apk", "myapp-release.apk"],
+  "failed": []
+}
 ```
 
 ## Development Commands

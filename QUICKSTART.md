@@ -75,6 +75,44 @@ npm run dev
 
 ---
 
+## 📦 APK Preinstallation (Optional)
+
+Want to automatically install your apps when emulators start? Set up APK preinstallation:
+
+### 1. Create Apps Directory
+```bash
+# Create the apps folder in your project root
+mkdir apps
+```
+
+### 2. Add Your APK Files
+```bash
+# Copy your APK files to the apps directory
+cp /path/to/your/app.apk apps/
+cp /path/to/another-app.apk apps/
+```
+
+### 3. Start Fresh Emulator
+1. Create a new emulator (or restart an existing one)
+2. When the emulator starts, all APKs in `/apps` will be automatically installed
+3. You'll see installation progress in the console logs
+
+### 4. Manual Installation
+You can also trigger installation manually:
+1. Go to the **App Manager** tab in the emulator dashboard
+2. Find the **"Quick Install Apps"** section
+3. Click **"Install All"** to install all APKs from the apps directory
+4. Click **"Launch App"** to automatically start the first installed app
+
+**Supported Features:**
+- ✅ **Automatic installation** when emulators start
+- ✅ **Bulk installation** of multiple APKs
+- ✅ **Installation status tracking** (success/failed)
+- ✅ **Manual trigger** via web interface
+- ✅ **Automatic app launching** with smart detection
+
+---
+
 ## 🛠️ Troubleshooting Common Issues
 
 ### "Java Not Found" Error

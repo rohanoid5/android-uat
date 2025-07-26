@@ -336,6 +336,114 @@ POST /emulators/:name/apps/:packageName/launch
 
 ---
 
+## APK Preinstallation
+
+### Get Available Preinstall APKs
+```http
+GET /preinstall/apps
+```
+
+**Description**: Retrieves a list of APK files available for preinstallation from the `/apps` directory.
+
+**Response**:
+```json
+[
+  {
+    "name": "app-debug.apk",
+    "path": "/Users/user/android-uat/apps/app-debug.apk"
+  },
+  {
+    "name": "myapp-release.apk", 
+    "path": "/Users/user/android-uat/apps/myapp-release.apk"
+  }
+]
+```
+
+**Status Codes**:
+- `200` - APK list retrieved successfully
+- `500` - Failed to scan apps directory
+
+---
+
+### Preinstall Apps on Emulator
+```http
+POST /emulators/:name/preinstall
+```
+
+**Description**: Installs all available APK files from the `/apps` directory on the specified emulator.
+
+**Parameters**:
+- `name` (string): Name of the target emulator
+
+**Response**:
+```json
+{
+  "installed": ["app-debug.apk", "myapp-release.apk"],
+  "failed": []
+}
+```
+
+**Response (with failures)**:
+```json
+{
+  "installed": ["app-debug.apk"],
+  "failed": [
+    {
+      "name": "broken-app.apk",
+      "error": "Installation failed: INSTALL_FAILED_INVALID_APK"
+    }
+  ]
+}
+```
+
+**Status Codes**:
+- `200` - Preinstallation completed (check response for individual results)
+- `404` - Emulator not found or not running
+- `500` - Preinstallation process failed
+
+**Features**:
+- Automatically installs all APK files from the `/apps` directory
+- Provides detailed results for each installation attempt
+- Runs automatically when emulators are started
+- Supports bulk installation for efficient app deployment
+
+---
+
+### Launch Preinstalled App
+```http
+POST /emulators/:name/launch-preinstalled
+```
+
+**Description**: Attempts to automatically launch the first preinstalled app on the emulator.
+
+**Parameters**:
+- `name` (string): Name of the target emulator
+
+**Response**:
+```json
+{
+  "message": "Launched com.example.app",
+  "packageName": "com.example.app"
+}
+```
+
+**Response (if no app detected)**:
+```json
+{
+  "message": "Could not automatically launch preinstalled app - package name not detected",
+  "packageName": null
+}
+```
+
+**Status Codes**:
+- `200` - Launch attempt completed (check response for actual result)
+- `404` - Emulator not found or not running
+- `500` - Launch process failed
+
+**Note**: This endpoint uses heuristic package name detection. For guaranteed app launching, use the standard app launch endpoint with the specific package name.
+
+---
+
 ## System Health
 
 ### Health Check

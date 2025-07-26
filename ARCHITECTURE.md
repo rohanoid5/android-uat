@@ -84,6 +84,9 @@ The Android Emulator Web Dashboard is a full-stack web application that provides
 - Emulator creation, starting, stopping, deletion
 - Status monitoring and device interaction
 - App installation and launching
+- **APK preinstallation system** with automatic deployment
+- **Bulk app installation** from `/apps` directory
+- **Smart package detection** for automatic app launching
 
 **Methods**:
 ```javascript
@@ -103,6 +106,12 @@ class EmulatorController {
   async installApp(emulatorName, apkPath)
   async launchApp(emulatorName, packageName)
   async getInstalledApps(emulatorName)
+  
+  // APK Preinstallation
+  async getPreinstallApks()
+  async preinstallApks(emulatorName)
+  async launchPreinstalledApp(emulatorName)
+  async getApkMainActivity(apkPath)
   
   // Utility
   getDefaultArchitecture()
@@ -208,6 +217,13 @@ POST   /api/emulators/:name/input          # Send input to emulator
 POST   /api/emulators/:name/install-app    # Install APK
 GET    /api/emulators/:name/apps           # List installed apps
 POST   /api/emulators/:name/apps/:pkg/launch # Launch app
+```
+
+#### APK Preinstallation
+```http
+GET    /api/preinstall/apps                # List available preinstall APKs
+POST   /api/emulators/:name/preinstall     # Install all preinstall APKs
+POST   /api/emulators/:name/launch-preinstalled # Launch preinstalled app
 ```
 
 #### System Health
@@ -316,6 +332,145 @@ if (!process.env.JAVA_HOME) {
   process.env.JAVA_HOME = "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home"
 }
 ```
+
+## APK Preinstallation System
+
+### Overview
+The APK preinstallation system provides automated app deployment capabilities, allowing developers to automatically install applications on emulators when they start. This feature significantly streamlines the testing workflow by eliminating manual app installation steps.
+
+### Architecture Components
+
+#### 1. Apps Directory Structure
+```
+android-uat/
+├── apps/                    # APK files for preinstallation
+│   ├── app-debug.apk
+│   ├── myapp-release.apk
+│   └── test-utility.apk
+└── backend/
+    └── controllers/
+        └── EmulatorController.js
+```
+
+#### 2. Preinstallation Workflow
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Emulator Start │───►│  APK Detection  │───►│  Installation   │
+│                 │    │                 │    │                 │
+│ • Boot Complete │    │ • Scan /apps    │    │ • ADB Install   │
+│ • ADB Ready     │    │ • Filter .apk   │    │ • Status Track  │
+│ • Services Up   │    │ • Validate      │    │ • Error Handle  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+           │                     │                      │
+           │                     │                      ▼
+           │                     │            ┌─────────────────┐
+           │                     │            │  App Launching  │
+           │                     │            │                 │
+           │                     │            │ • Package Detect│
+           │                     │            │ • Auto Launch   │
+           │                     │            │ • Heuristic     │
+           │                     │            └─────────────────┘
+           │                     │
+           ▼                     ▼
+┌─────────────────┐    ┌─────────────────┐
+│  WebSocket      │    │  Frontend UI    │
+│  Notification   │    │  Update         │
+│                 │    │                 │
+│ • Progress      │    │ • Status Display│
+│ • Results       │    │ • Manual Trigger│
+│ • Errors        │    │ • Quick Install │
+└─────────────────┘    └─────────────────┘
+```
+
+#### 3. Key Methods
+```javascript
+// APK Detection and Management
+async getPreinstallApks() {
+  // Scans /apps directory for .apk files
+  // Returns array of {name, path} objects
+}
+
+// Bulk Installation
+async preinstallApks(emulatorName) {
+  // Installs all APKs from apps directory
+  // Returns {installed: [], failed: []} status
+}
+
+// Smart App Launching
+async launchPreinstalledApp(emulatorName) {
+  // Attempts to launch the first installed app
+  // Uses heuristic package name detection
+}
+```
+
+#### 4. Integration Points
+
+**Emulator Startup Integration:**
+```javascript
+// In startEmulator() method
+setTimeout(async () => {
+  await this.waitForEmulatorBoot(emulatorName);
+  
+  // Trigger preinstallation after boot
+  const preinstallResult = await this.preinstallApks(emulatorName);
+  
+  // Optional auto-launch
+  if (preinstallResult.installed.length > 0) {
+    await this.launchPreinstalledApp(emulatorName);
+  }
+}, 5000);
+```
+
+**Frontend Integration:**
+```javascript
+// AppManager.jsx - Quick Install UI
+const handlePreinstall = async () => {
+  const response = await axios.post(`/api/emulators/${emulator.id}/preinstall`);
+  setPreinstallResult(response.data);
+};
+```
+
+### Features
+
+#### Automatic Installation
+- **Trigger**: Automatically runs when emulators start
+- **Scanning**: Detects all `.apk` files in `/apps` directory
+- **Installation**: Uses ADB to install each APK sequentially
+- **Reporting**: Tracks success/failure for each installation
+
+#### Manual Controls
+- **Quick Install UI**: Frontend interface for manual triggering
+- **Bulk Operations**: Install all APKs at once
+- **Status Display**: Real-time installation progress
+- **Error Reporting**: Detailed failure information
+
+#### Smart App Launching
+- **Package Detection**: Attempts to identify main package name
+- **Heuristic Matching**: Uses common naming patterns
+- **Automatic Launch**: Starts the first detected app
+- **Fallback Handling**: Graceful degradation if detection fails
+
+### Error Handling
+
+#### Installation Failures
+```javascript
+// Typical error response
+{
+  "installed": ["app-debug.apk"],
+  "failed": [
+    {
+      "name": "broken-app.apk",
+      "error": "INSTALL_FAILED_INVALID_APK"
+    }
+  ]
+}
+```
+
+#### Common Issues
+- **Invalid APK**: Corrupted or incompatible APK files
+- **Permission Denied**: Insufficient system permissions
+- **Storage Full**: Device storage limitations
+- **Architecture Mismatch**: ARM vs x86 compatibility issues
 
 ## Security Considerations
 

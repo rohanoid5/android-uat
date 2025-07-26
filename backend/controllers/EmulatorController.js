@@ -17,11 +17,13 @@ class EmulatorController {
       process.env.AVDMANAGER_PATH ||
       `${this.androidHome}/cmdline-tools/latest/bin/avdmanager`;
 
+    // Set up apps directory for preinstallation
+    this.appsDir = path.join(__dirname, "../../apps");
+
     // Set correct JAVA_HOME for M1 Macs
-    if (!process.env.JAVA_HOME) {
-      process.env.JAVA_HOME =
-        "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home";
-    }
+    // Always override JAVA_HOME to ensure it's correct
+    process.env.JAVA_HOME =
+      "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home";
 
     this.io = io;
   }
@@ -146,9 +148,22 @@ class EmulatorController {
             });
           }
 
+          // Preinstall APKs after emulator is ready
+          console.log(
+            `Emulator ${emulatorName} is ready, starting preinstallation...`
+          );
+          const preinstallResult = await this.preinstallApks(emulatorName);
+
+          // Optional: Launch the first preinstalled app automatically
+          if (preinstallResult.installed.length > 0) {
+            console.log("Attempting to launch preinstalled app...");
+            await this.launchPreinstalledApp(emulatorName);
+          }
+
           resolve({
             message: `Emulator ${emulatorName} started successfully`,
             status: "running",
+            preinstalled: preinstallResult,
           });
         } catch (error) {
           reject(error);
@@ -308,6 +323,145 @@ class EmulatorController {
         resolve({ message: `App ${packageName} launched successfully` });
       });
     });
+  }
+
+  // Get list of APK files from apps directory
+  async getPreinstallApks() {
+    try {
+      if (!fs.existsSync(this.appsDir)) {
+        console.log(`Apps directory not found: ${this.appsDir}`);
+        return [];
+      }
+
+      const files = await fs.readdir(this.appsDir);
+      const apkFiles = files
+        .filter((file) => file.toLowerCase().endsWith(".apk"))
+        .map((file) => ({
+          name: file,
+          path: path.join(this.appsDir, file),
+        }));
+
+      console.log(
+        `Found ${apkFiles.length} APK files for preinstallation:`,
+        apkFiles.map((f) => f.name)
+      );
+      return apkFiles;
+    } catch (error) {
+      console.error("Error scanning apps directory:", error);
+      return [];
+    }
+  }
+
+  // Preinstall all APKs from the apps folder
+  async preinstallApks(emulatorName) {
+    try {
+      const apkFiles = await this.getPreinstallApks();
+
+      if (apkFiles.length === 0) {
+        console.log("No APK files found for preinstallation");
+        return { installed: [], failed: [] };
+      }
+
+      console.log(
+        `Starting preinstallation of ${apkFiles.length} APKs on emulator ${emulatorName}`
+      );
+
+      const installed = [];
+      const failed = [];
+
+      for (const apk of apkFiles) {
+        try {
+          console.log(`Installing ${apk.name}...`);
+          await this.installApp(emulatorName, apk.path);
+          installed.push(apk.name);
+          console.log(`✅ Successfully installed ${apk.name}`);
+        } catch (error) {
+          console.error(`❌ Failed to install ${apk.name}:`, error.message);
+          failed.push({ name: apk.name, error: error.message });
+        }
+      }
+
+      const result = { installed, failed };
+      console.log(
+        `Preinstallation complete: ${installed.length} installed, ${failed.length} failed`
+      );
+
+      // Notify frontend about preinstallation results
+      if (this.io) {
+        this.io.emit("apps-preinstalled", {
+          emulatorName,
+          result,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error during preinstallation:", error);
+      return {
+        installed: [],
+        failed: [{ name: "preinstallation", error: error.message }],
+      };
+    }
+  }
+
+  // Get the main launcher activity of an APK
+  async getApkMainActivity(apkPath) {
+    return new Promise((resolve, reject) => {
+      const command = `${this.androidHome}/build-tools/*/aapt dump badging "${apkPath}" | grep "launchable-activity"`;
+
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          resolve(null); // Return null if we can't determine the activity
+          return;
+        }
+
+        const match = stdout.match(/name='([^']+)'/);
+        resolve(match ? match[1] : null);
+      });
+    });
+  }
+
+  // Launch the first preinstalled app automatically
+  async launchPreinstalledApp(emulatorName) {
+    try {
+      const apkFiles = await this.getPreinstallApks();
+
+      if (apkFiles.length === 0) {
+        return null;
+      }
+
+      // Try to launch the first APK
+      const firstApk = apkFiles[0];
+      console.log(`Attempting to launch preinstalled app: ${firstApk.name}`);
+
+      // Get package name from installed apps
+      const installedApps = await this.getInstalledApps(emulatorName);
+
+      // For now, we'll use a simple approach - try common package naming patterns
+      // This could be enhanced to parse the APK and get the exact package name
+      const apkBaseName = path.basename(firstApk.name, ".apk");
+      const possiblePackages = [
+        `com.example.${apkBaseName}`,
+        `com.${apkBaseName}`,
+        `com.company.${apkBaseName}`,
+      ];
+
+      for (const packageName of possiblePackages) {
+        if (installedApps.includes(packageName)) {
+          await this.launchApp(emulatorName, packageName);
+          console.log(`✅ Launched ${packageName}`);
+          return packageName;
+        }
+      }
+
+      console.log(
+        "Could not automatically launch preinstalled app - package name not detected"
+      );
+      return null;
+    } catch (error) {
+      console.error("Error launching preinstalled app:", error);
+      return null;
+    }
   }
 
   async waitForEmulatorBoot(emulatorName) {

@@ -141,6 +141,43 @@ app.post("/api/emulators/:name/apps/:packageName/launch", async (req, res) => {
   }
 });
 
+// Get list of available APKs for preinstallation
+app.get("/api/preinstall/apps", async (req, res) => {
+  try {
+    const apks = await emulatorController.getPreinstallApks();
+    res.json(apks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manually trigger preinstallation on a running emulator
+app.post("/api/emulators/:name/preinstall", async (req, res) => {
+  try {
+    const { name } = req.params;
+    const result = await emulatorController.preinstallApks(name);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Launch preinstalled app
+app.post("/api/emulators/:name/launch-preinstalled", async (req, res) => {
+  try {
+    const { name } = req.params;
+    const result = await emulatorController.launchPreinstalledApp(name);
+    res.json({
+      message: result
+        ? `Launched ${result}`
+        : "Could not launch preinstalled app",
+      packageName: result,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // WebSocket connections
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
