@@ -5,11 +5,17 @@
   "main": "index.js",
   "scripts": {
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "setup:m1": "./setup_m1.sh",
+    "setup:intel": "./setup.sh",
+    "fix:java": "./fix_java_home.sh",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd backend && npm run dev",
     "client": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
-    "start": "cd backend && npm start"
+    "start": "cd backend && npm start",
+    "emulator:m1": "./start_m1_emulator.sh",
+    "emulator:start": "./start_emulator.sh",
+    "emulator:stop": "./stop_emulator.sh"
   },
   "keywords": [
     "android",

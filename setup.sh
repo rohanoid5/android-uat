@@ -79,14 +79,44 @@ fi
 # Create .env files if they don't exist
 echo "⚙️  Setting up configuration..."
 
-# Backend .env
+# Detect the correct JAVA_HOME for the current system
+DETECTED_JAVA_HOME=""
+if [ -d "/Library/Java/JavaVirtualMachines" ]; then
+    # Find the most recent Java installation
+    JAVA_DIRS=$(ls -1 /Library/Java/JavaVirtualMachines/ | grep -E "jdk-[0-9]+" | sort -V | tail -1)
+    if [ ! -z "$JAVA_DIRS" ]; then
+        DETECTED_JAVA_HOME="/Library/Java/JavaVirtualMachines/$JAVA_DIRS/Contents/Home"
+        print_status "Detected Java at: $DETECTED_JAVA_HOME"
+    fi
+fi
+
+# Fallback to java_home utility if available
+if [ -z "$DETECTED_JAVA_HOME" ] && command -v /usr/libexec/java_home &> /dev/null; then
+    DETECTED_JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null)
+    if [ ! -z "$DETECTED_JAVA_HOME" ]; then
+        print_status "Detected Java via java_home: $DETECTED_JAVA_HOME"
+    fi
+fi
+
+if [ -z "$DETECTED_JAVA_HOME" ]; then
+    print_warning "Could not auto-detect Java installation."
+    DETECTED_JAVA_HOME="/usr/lib/jvm/default-java"  # Linux default
+fi
+
+# Backend .env with proper paths
 if [ ! -f "backend/.env" ]; then
     cat > backend/.env << EOF
 PORT=3001
 NODE_ENV=development
 ANDROID_SDK_ROOT=\$HOME/Android/Sdk
+ANDROID_HOME=\$HOME/Android/Sdk
+JAVA_HOME=$DETECTED_JAVA_HOME
+# Full paths to avoid PATH issues
+ADB_PATH=\$HOME/Android/Sdk/platform-tools/adb
+EMULATOR_PATH=\$HOME/Android/Sdk/emulator/emulator
+AVDMANAGER_PATH=\$HOME/Android/Sdk/cmdline-tools/latest/bin/avdmanager
 EOF
-    print_status "Created backend/.env"
+    print_status "Created backend/.env with Java path: $DETECTED_JAVA_HOME"
 else
     print_status "Backend .env already exists"
 fi

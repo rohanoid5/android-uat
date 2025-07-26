@@ -51,10 +51,12 @@ function EmulatorList({ onEmulatorSelect }) {
     setIsCreating(true);
     try {
       const newEmulatorName = `WebControllerEmulator-${Date.now()}`;
+
+      // Auto-detect architecture - let backend determine the best architecture
       await axios.post("/api/emulators", {
         name: newEmulatorName,
         apiLevel: 34,
-        arch: "x86_64",
+        // Remove hardcoded arch - let backend auto-detect based on system
         device: "pixel_5",
       });
       await fetchEmulators();

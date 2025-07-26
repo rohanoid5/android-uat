@@ -5,14 +5,74 @@ const path = require("path");
 class EmulatorController {
   constructor(io = null) {
     this.runningEmulators = new Map();
-    this.adbPath = process.env.ADB_PATH || "adb";
-    this.emulatorPath = process.env.EMULATOR_PATH || "emulator";
+    this.androidHome =
+      process.env.ANDROID_HOME ||
+      process.env.ANDROID_SDK_ROOT ||
+      `${require("os").homedir()}/Android/Sdk`;
+    this.adbPath =
+      process.env.ADB_PATH || `${this.androidHome}/platform-tools/adb`;
+    this.emulatorPath =
+      process.env.EMULATOR_PATH || `${this.androidHome}/emulator/emulator`;
+    this.avdManagerPath =
+      process.env.AVDMANAGER_PATH ||
+      `${this.androidHome}/cmdline-tools/latest/bin/avdmanager`;
+
+    // Set correct JAVA_HOME for M1 Macs
+    if (!process.env.JAVA_HOME) {
+      process.env.JAVA_HOME =
+        "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home";
+    }
+
     this.io = io;
+  }
+
+  getDefaultArchitecture() {
+    const os = require("os");
+    const arch = os.arch();
+    const platform = os.platform();
+
+    // For macOS M1/M2 (Apple Silicon)
+    if (platform === "darwin" && arch === "arm64") {
+      return "arm64-v8a";
+    }
+
+    // For Intel Macs and other x86_64 systems
+    return "x86_64";
+  }
+
+  getEmulatorArgs(emulatorName) {
+    const os = require("os");
+    const arch = os.arch();
+    const platform = os.platform();
+
+    let args = [
+      "-avd",
+      emulatorName,
+      "-no-audio",
+      "-no-snapshot-save",
+      "-no-snapshot-load",
+      "-camera-back",
+      "webcam0",
+      "-camera-front",
+      "webcam0",
+      "-read-only",
+      "-no-metrics",
+    ];
+
+    // M1 Mac optimizations
+    if (platform === "darwin" && arch === "arm64") {
+      args.push("-gpu", "auto", "-memory", "2048", "-cores", "4");
+    } else {
+      // Intel Mac optimizations
+      args.push("-gpu", "auto", "-memory", "2048");
+    }
+
+    return args;
   }
 
   async getAvailableEmulators() {
     return new Promise((resolve, reject) => {
-      exec(`${this.emulatorPath} -list-avds`, (error, stdout, stderr) => {
+      exec(`"${this.emulatorPath}" -list-avds`, (error, stdout, stderr) => {
         if (error) {
           reject(new Error(`Failed to get emulators: ${error.message}`));
           return;
@@ -44,19 +104,10 @@ class EmulatorController {
 
       console.log(`Starting emulator: ${emulatorName}`);
 
-      const emulatorProcess = spawn(this.emulatorPath, [
-        "-avd",
-        emulatorName,
-        "-no-audio",
-        "-no-snapshot-save",
-        "-no-snapshot-load",
-        "-camera-back",
-        "webcam0",
-        "-camera-front",
-        "webcam0",
-        "-read-only",
-        "-no-metrics",
-      ]);
+      // Get optimal emulator arguments based on architecture
+      const emulatorArgs = this.getEmulatorArgs(emulatorName);
+
+      const emulatorProcess = spawn(this.emulatorPath, emulatorArgs);
 
       this.runningEmulators.set(emulatorName, {
         process: emulatorProcess,
@@ -286,11 +337,13 @@ class EmulatorController {
   }
 
   async createEmulator(name, options = {}) {
-    const { apiLevel = 34, arch = "x86_64", device = "pixel_5" } = options;
+    // Detect architecture automatically for M1 Macs
+    const defaultArch = this.getDefaultArchitecture();
+    const { apiLevel = 34, arch = defaultArch, device = "pixel_5" } = options;
 
     return new Promise((resolve, reject) => {
       // First check if emulator already exists
-      exec(`${this.emulatorPath} -list-avds`, (error, stdout) => {
+      exec(`"${this.emulatorPath}" -list-avds`, (error, stdout) => {
         if (error) {
           reject(
             new Error(`Failed to check existing emulators: ${error.message}`)
@@ -309,28 +362,67 @@ class EmulatorController {
 
         // Create the emulator
         const systemImage = `system-images;android-${apiLevel};google_apis;${arch}`;
-        const createCommand = `avdmanager create avd -n "${name}" -k "${systemImage}" -d "${device}" --force`;
+        console.log(`Creating emulator with system image: ${systemImage}`);
 
-        console.log(`Creating emulator: ${createCommand}`);
+        // Use spawn to handle interactive prompts with correct environment
+        const createProcess = spawn(
+          this.avdManagerPath,
+          [
+            "create",
+            "avd",
+            "-n",
+            name,
+            "-k",
+            systemImage,
+            "-d",
+            device,
+            "--force",
+          ],
+          {
+            env: {
+              ...process.env,
+              JAVA_HOME:
+                "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home",
+            },
+          }
+        );
 
-        exec(createCommand, (createError, createStdout, createStderr) => {
-          if (createError) {
+        let output = "";
+        let errorOutput = "";
+
+        createProcess.stdout.on("data", (data) => {
+          output += data.toString();
+        });
+
+        createProcess.stderr.on("data", (data) => {
+          errorOutput += data.toString();
+        });
+
+        // Send 'no' to any prompts (like custom hardware profile)
+        createProcess.stdin.write("no\n");
+        createProcess.stdin.end();
+
+        createProcess.on("close", (code) => {
+          if (code === 0) {
+            console.log(`Emulator created successfully: ${output}`);
+            resolve({
+              message: `Emulator '${name}' created successfully`,
+              name: name,
+              apiLevel: apiLevel,
+              arch: arch,
+              device: device,
+            });
+          } else {
             reject(
               new Error(
-                `Failed to create emulator: ${createError.message}. Stderr: ${createStderr}`
+                `Failed to create emulator: Exit code ${code}. Output: ${output}. Error: ${errorOutput}`
               )
             );
-            return;
           }
+        });
 
-          console.log(`Emulator created successfully: ${createStdout}`);
-          resolve({
-            message: `Emulator '${name}' created successfully`,
-            name: name,
-            apiLevel: apiLevel,
-            arch: arch,
-            device: device,
-          });
+        createProcess.on("error", (error) => {
+          reject(new Error(`Failed to start avdmanager: ${error.message}`));
         });
       });
     });

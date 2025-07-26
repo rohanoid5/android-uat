@@ -48,6 +48,25 @@ A comprehensive web-based system for controlling Android emulators through a mod
 
 ## Installation
 
+### For M1/M2 Macs (Apple Silicon) - Recommended
+
+1. **Quick M1-optimized setup:**
+
+   ```bash
+   git clone <repository-url>
+   cd android-uat-system
+   ./setup_m1.sh
+   ```
+
+   This script will:
+   - Install Java 17 if needed
+   - Install Android SDK with ARM64 system images
+   - Create an M1-optimized emulator
+   - Install all project dependencies
+   - Configure optimal settings for Apple Silicon
+
+### For Intel Macs or Manual Setup
+
 1. **Clone and install dependencies:**
 
    ```bash
@@ -67,6 +86,20 @@ A comprehensive web-based system for controlling Android emulators through a mod
    ```
 
 ## Development
+
+### M1/M2 Macs (Recommended)
+
+Start with the M1-optimized emulator:
+
+```bash
+# Start M1-optimized emulator
+./start_m1_emulator.sh
+
+# In another terminal, start the development servers
+npm run dev
+```
+
+### Intel Macs or Standard Setup
 
 Start the development servers:
 
@@ -173,26 +206,51 @@ android-uat-system/
    export PATH="$HOME/Android/Sdk/platform-tools:$PATH"
    ```
 
-2. **Emulator won't start:**
+2. **Java issues on M1 Macs:**
+
+   ```bash
+   # Auto-fix Java configuration
+   npm run fix:java
+   
+   # Or run the script directly
+   ./fix_java_home.sh
+   ```
+
+3. **Emulator won't start:**
 
    ```bash
    # Check available system images
    sdkmanager --list | grep system-images
 
-   # Install required system image
-   sdkmanager "system-images;android-30;google_apis;x86_64"
+   # Install required system image (M1 Macs)
+   sdkmanager "system-images;android-34;google_apis;arm64-v8a"
+   
+   # Install required system image (Intel Macs)
+   sdkmanager "system-images;android-34;google_apis;x86_64"
    ```
 
-3. **Screen capture not working:**
+4. **Screen capture not working:**
 
    - Ensure emulator is fully booted
    - Check ADB connection: `adb devices`
    - Restart the emulator if needed
 
-4. **WebSocket connection issues:**
+5. **WebSocket connection issues:**
    - Check if backend server is running on port 3001
    - Verify no firewall blocking connections
    - Check browser console for connection errors
+
+6. **"Create Emulator" fails with Java errors:**
+   
+   This is common on M1 Macs with incorrect JAVA_HOME:
+   ```bash
+   # Quick fix
+   npm run fix:java
+   
+   # Manual check
+   echo $JAVA_HOME
+   java -version
+   ```
 
 ### Performance Tips
 
@@ -215,6 +273,16 @@ npm run build
 
 # Start production server
 npm start
+
+# Setup scripts
+npm run setup:m1       # M1/M2 Mac setup
+npm run setup:intel    # Intel Mac setup
+npm run fix:java       # Fix Java configuration issues
+
+# Emulator management
+npm run emulator:m1    # Start M1-optimized emulator
+npm run emulator:start # Start regular emulator
+npm run emulator:stop  # Stop emulator
 
 # Backend only
 npm run server

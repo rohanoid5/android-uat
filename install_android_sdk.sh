@@ -60,14 +60,6 @@ if [ -z "$JAVA_VERSION" ] || [ "$JAVA_VERSION" -lt "$REQUIRED_JAVA_VERSION" ]; t
         sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk 2>/dev/null || \
         sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
         
-        # Update JAVA_HOME for this session
-        if [[ $(uname -m) == "arm64" ]]; then
-            export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
-        else
-            export JAVA_HOME="/usr/local/opt/openjdk@17"
-        fi
-        export PATH="$JAVA_HOME/bin:$PATH"
-        
         print_status "Java 17 installed successfully"
     else
         print_error "Homebrew not found. Please install Homebrew first:"
@@ -79,6 +71,38 @@ if [ -z "$JAVA_VERSION" ] || [ "$JAVA_VERSION" -lt "$REQUIRED_JAVA_VERSION" ]; t
 else
     print_status "Java $JAVA_VERSION is installed and compatible"
 fi
+
+# Auto-detect correct JAVA_HOME
+DETECTED_JAVA_HOME=""
+if [ -d "/Library/Java/JavaVirtualMachines" ]; then
+    # Find the most recent Java installation
+    JAVA_DIRS=$(ls -1 /Library/Java/JavaVirtualMachines/ | grep -E "jdk-[0-9]+" | sort -V | tail -1)
+    if [ ! -z "$JAVA_DIRS" ]; then
+        DETECTED_JAVA_HOME="/Library/Java/JavaVirtualMachines/$JAVA_DIRS/Contents/Home"
+        print_status "Auto-detected Java at: $DETECTED_JAVA_HOME"
+    fi
+fi
+
+# Fallback to java_home utility if available
+if [ -z "$DETECTED_JAVA_HOME" ] && command -v /usr/libexec/java_home &> /dev/null; then
+    DETECTED_JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null)
+    if [ ! -z "$DETECTED_JAVA_HOME" ]; then
+        print_status "Auto-detected Java via java_home: $DETECTED_JAVA_HOME"
+    fi
+fi
+
+if [ -z "$DETECTED_JAVA_HOME" ]; then
+    print_warning "Could not auto-detect Java installation. Using default path."
+    if [[ $(uname -m) == "arm64" ]]; then
+        DETECTED_JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+    else
+        DETECTED_JAVA_HOME="/usr/local/opt/openjdk@17"
+    fi
+fi
+
+# Set JAVA_HOME for this session
+export JAVA_HOME="$DETECTED_JAVA_HOME"
+export PATH="$JAVA_HOME/bin:$PATH"
 
 print_header "Android SDK & Emulator Setup"
 echo "This script will:"
@@ -105,7 +129,8 @@ mkdir -p "$CMDLINE_TOOLS_DIR"
 # Download and install Command Line Tools
 print_header "Step 1: Installing Android Command Line Tools"
 
-CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip"
+# Use the latest command line tools URL
+CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-mac-11479570_latest.zip"
 CMDLINE_TOOLS_ZIP="/tmp/commandlinetools.zip"
 
 if [ ! -d "$LATEST_DIR" ]; then
@@ -229,12 +254,8 @@ if ! grep -q "ANDROID_HOME" "$SHELL_PROFILE"; then
     print_info "Adding Android environment variables to $SHELL_PROFILE"
     
     echo "" >> "$SHELL_PROFILE"
-    echo "# Java Environment Variables" >> "$SHELL_PROFILE"
-    if [[ $(uname -m) == "arm64" ]]; then
-        echo "export JAVA_HOME=\"/opt/homebrew/opt/openjdk@17\"" >> "$SHELL_PROFILE"
-    else
-        echo "export JAVA_HOME=\"/usr/local/opt/openjdk@17\"" >> "$SHELL_PROFILE"
-    fi
+    echo "# Java Environment Variables - Auto-detected $(date +%Y-%m-%d)" >> "$SHELL_PROFILE"
+    echo "export JAVA_HOME=\"$DETECTED_JAVA_HOME\"" >> "$SHELL_PROFILE"
     echo "" >> "$SHELL_PROFILE"
     echo "# Android SDK Environment Variables" >> "$SHELL_PROFILE"
     echo "export ANDROID_HOME=\"$ANDROID_HOME\"" >> "$SHELL_PROFILE"
@@ -242,6 +263,7 @@ if ! grep -q "ANDROID_HOME" "$SHELL_PROFILE"; then
     echo "export PATH=\"\$JAVA_HOME/bin:\$ANDROID_HOME/emulator:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/cmdline-tools/latest/bin:\$PATH\"" >> "$SHELL_PROFILE"
     
     print_status "Environment variables added to $SHELL_PROFILE"
+    print_status "Java path set to: $DETECTED_JAVA_HOME"
 else
     print_status "Environment variables already configured"
 fi
