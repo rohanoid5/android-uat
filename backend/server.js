@@ -54,6 +54,16 @@ app.post("/api/emulators", async (req, res) => {
   }
 });
 
+app.delete("/api/emulators/:name", async (req, res) => {
+  try {
+    const { name } = req.params;
+    const result = await emulatorController.deleteEmulator(name);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/emulators/:name/start", async (req, res) => {
   try {
     const { name } = req.params;
@@ -136,6 +146,11 @@ io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
   socket.on("start-screen-capture", (emulatorName) => {
+    console.log(
+      `Received start-screen-capture request for:`,
+      typeof emulatorName,
+      emulatorName
+    );
     screenCaptureService.startCapture(emulatorName, socket);
   });
 

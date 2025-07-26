@@ -1,189 +1,249 @@
-# Quick Start Guide - Android Emulator Web Control
+# Quick Start Guide
 
-## 🚀 Getting Started
+Get up and running with the Android Emulator Web Dashboard in under 10 minutes!
 
-Follow these steps to get your Android emulator working with the web dashboard:
+## 🎯 Prerequisites Checklist
 
-### Step 1: Install Android SDK and Create Emulator
+Before starting, ensure you have:
 
+- [ ] **macOS** 10.14+ (Intel) or 11.0+ (Apple Silicon)
+- [ ] **Node.js** v16+ installed ([Download here](https://nodejs.org/))
+- [ ] **Git** installed
+- [ ] **8+ GB RAM** available
+- [ ] **20+ GB free disk space**
+
+## 🚀 5-Minute Setup
+
+### Step 1: Clone and Install
 ```bash
-./install_android_sdk.sh
+# Clone the repository
+git clone https://github.com/rohanoid5/android-uat.git
+cd android-uat
+
+# Install all dependencies (frontend + backend)
+npm run install:all
 ```
 
-This script will:
+### Step 2: Automated Setup
 
-- ✅ Download and install Android SDK Command Line Tools
-- ✅ Install required platform tools (ADB, emulator)
-- ✅ Download Android system images
-- ✅ Create an optimized Android Virtual Device (AVD)
-- ✅ Configure environment variables
-- ✅ Create helper scripts for starting/stopping the emulator
-
-**⏱️ Estimated time: 10-15 minutes (depending on internet speed)**
-
-### Step 2: Restart Your Terminal
-
-After installation, restart your terminal or run:
-
+**For M1/M2 Macs:**
 ```bash
-source ~/.zshrc  # or ~/.bash_profile if you use bash
+npm run setup:m1
 ```
 
-### Step 3: Start the Emulator
-
+**For Intel Macs:**
 ```bash
-./start_emulator.sh
+npm run setup:intel
 ```
 
-This will:
+This will automatically:
+- ✅ Download and install Android SDK
+- ✅ Configure Java environment  
+- ✅ Install required system images
+- ✅ Set up environment variables
 
-- Start the Android emulator in the background
-- Wait for it to fully boot (2-3 minutes)
-- Show you when it's ready for web control
-
-### Step 4: Start the Web Dashboard
-
-In another terminal window:
-
+### Step 3: Start the Application
 ```bash
 npm run dev
 ```
 
-### Step 5: Open the Web Interface
+---
 
-Open your browser and go to: **http://localhost:3000**
+## 🎮 First Emulator Walkthrough
+
+### 1. Create Your First Emulator
+1. Open http://localhost:3000
+2. Click the **"Create Emulator"** button
+3. Wait 30-60 seconds for creation
+4. You'll see a new emulator card appear
+
+### 2. Start the Emulator
+1. Click **"Start"** on your emulator card
+2. Wait 1-2 minutes for the emulator to boot
+3. Status will change from "starting" → "running"
+
+### 3. Open the Dashboard
+1. Click **"Open Dashboard"** when status is "running"
+2. You'll see a live screen capture of your Android device
+3. Click anywhere on the screen to interact!
+
+### 4. Test Interactions
+- **Tap**: Click anywhere on the emulator screen
+- **Swipe**: Click and drag to simulate swipe gestures
+- **Home**: Use on-screen navigation buttons
+- **Back**: Android back gesture or button
 
 ---
 
-## 🎮 Using the Web Dashboard
+## 🛠️ Troubleshooting Common Issues
 
-### Emulator List View
+### "Java Not Found" Error
 
-- See all available emulators
-- Start/stop emulators
-- View real-time status
-
-### Emulator Control Dashboard
-
-- **Screen Tab**: Live screen view with click/touch interaction
-- **Apps Tab**: Install APKs, launch apps, manage applications
-- **Settings Tab**: View emulator information
-
-### Controls Available
-
-- 📱 **Touch/Click**: Click on the emulator screen to interact
-- 🏠 **Hardware Buttons**: Home, Back, Volume, Power buttons
-- ⌨️ **Text Input**: Type text that gets sent to the emulator
-- 📷 **Screenshots**: Capture screen images
-- 🔄 **Device Actions**: Rotate, shake device
-
----
-
-## 🛠️ Helpful Commands
-
-### Emulator Management
-
+**Quick Fix:**
 ```bash
-./start_emulator.sh     # Start the emulator
-./stop_emulator.sh      # Stop the emulator
-adb devices            # List connected devices
+npm run fix:java
 ```
 
-### Development
-
+**Manual Fix:**
 ```bash
-npm run dev           # Start both frontend and backend
-npm run server        # Start only backend (port 3001)
-npm run client        # Start only frontend (port 3000)
+# Check Java installation
+java -version
+
+# Set JAVA_HOME (example for M1/M2 Macs)
+export JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home"
 ```
 
-### Android Tools
+### "Android SDK Not Found" Error
 
+**Solution:**
 ```bash
-adb shell             # Connect to emulator shell
-adb install app.apk   # Install APK manually
-adb logcat           # View device logs
+# Set environment variables
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"
+
+# Re-run setup
+npm run setup:m1  # or setup:intel
+```
+
+### "Failed to Create Emulator" Error
+
+**Check System Images:**
+```bash
+# List available system images
+sdkmanager --list | grep system-images
+
+# Install missing system image (M1/M2)
+sdkmanager "system-images;android-34;google_apis;arm64-v8a"
+
+# Install missing system image (Intel)
+sdkmanager "system-images;android-34;google_apis;x86_64"
+```
+
+### "Screen Capture Not Working"
+
+**Solutions:**
+1. **Wait for boot**: Ensure emulator shows Android home screen
+2. **Check ADB**: Run `adb devices` - should show your emulator
+3. **Restart**: Stop and start the emulator again
+4. **Refresh**: Reload the web dashboard
+
+---
+
+## 📱 Testing Your Setup
+
+### 1. Basic Functionality Test
+```bash
+# Check if API is running
+curl http://localhost:3001/api/health
+
+# Expected response:
+# {"status":"healthy","timestamp":"2025-07-26T..."}
+```
+
+### 2. Create Emulator via API
+```bash
+curl -X POST http://localhost:3001/api/emulators \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "TestDevice-'$(date +%s)'",
+    "apiLevel": 34,
+    "device": "pixel_5"
+  }'
+```
+
+### 3. List All Emulators
+```bash
+curl http://localhost:3001/api/emulators
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## 🎯 Next Steps
 
-### Emulator Won't Start
+Once your setup is working:
 
-1. Check the log file: `cat emulator.log`
-2. Ensure you have enough RAM (8GB+ recommended)
-3. Enable hardware acceleration if available
-4. Try stopping and restarting: `./stop_emulator.sh && ./start_emulator.sh`
+### Explore the Features
+- 📱 **Create multiple emulators** with different configurations
+- 🖥️ **Test different screen sizes** (phone, tablet)
+- 📦 **Install APK files** through the web interface
+- 🎮 **Control multiple emulators** simultaneously
 
-### Web Dashboard Not Connecting
+### Development Workflow
+- 🔄 **Live reload** - changes reflect immediately
+- 🐛 **Debug mode** - check browser console for errors
+- 📊 **Monitor logs** - watch terminal output
+- 🔧 **API testing** - use curl or Postman
 
-1. Ensure emulator is fully booted: `adb devices`
-2. Check if backend is running on port 3001
-3. Verify frontend is running on port 3000
-4. Check browser console for WebSocket connection errors
+### Advanced Configuration
+- ⚙️ **Custom system images** - different Android versions
+- 🚀 **Performance tuning** - allocate more RAM/CPU
+- 🌐 **Network setup** - configure proxy settings
+- � **File management** - share files with emulator
 
-### Screen Capture Not Working
-
-1. Verify ADB connection: `adb devices`
-2. Test manual screenshot: `adb exec-out screencap -p > test.png`
-3. Check backend logs for errors
-4. Restart the emulator if needed
-
-### Performance Issues
-
-- Allocate more RAM to the emulator
-- Close other applications to free up resources
-- Use x86_64 images on Intel Macs for better performance
-- Enable hardware acceleration (HAXM on Intel, Hypervisor Framework on Apple Silicon)
+### Read the Documentation
+- 📖 **[Architecture Guide](./ARCHITECTURE.md)** - understand the system design
+- 🔧 **[Setup Guide](./SETUP.md)** - detailed installation instructions
+- 📡 **[API Reference](./API.md)** - complete API documentation
+- ⚛️ **[Frontend Guide](./FRONTEND.md)** - React component details
 
 ---
 
-## 📱 Installing Apps
+## 🎉 Success Checklist
 
-### Via Web Dashboard
+You're ready to go when you can:
 
-1. Go to the "Apps" tab in the dashboard
-2. Click "Install APK"
-3. Select your .apk file
-4. Wait for installation to complete
-5. Launch the app from the list
-
-### Via Command Line
-
-```bash
-adb install path/to/your/app.apk
-```
+- [ ] ✅ Access http://localhost:3000 (frontend)
+- [ ] ✅ Get response from http://localhost:3001/api/health
+- [ ] ✅ Create a new emulator via the web interface
+- [ ] ✅ Start an emulator and see "running" status
+- [ ] ✅ Open emulator dashboard and see live screen
+- [ ] ✅ Interact with emulator by clicking the screen
+- [ ] ✅ See real-time screen updates
 
 ---
 
-## 🎯 What You Can Do
+## 🆘 Getting Help
 
-✅ **Remote Control**: Control Android emulator from web browser  
-✅ **Live Screen**: Real-time screen sharing via WebSocket  
-✅ **App Management**: Install, launch, and uninstall apps  
-✅ **Hardware Simulation**: Use all hardware buttons and gestures  
-✅ **Multi-Device**: Support for multiple emulators (future enhancement)  
-✅ **Cross-Platform**: Works on any device with a web browser
+### Immediate Help
+- **Check logs**: Look at terminal output for error messages
+- **Browser console**: Check for JavaScript errors (F12)
+- **Test API**: Use `curl` commands to verify backend
+- **Restart**: Try `npm run dev` again
+
+### Community Support
+- 📖 **Documentation**: Complete guides in repository
+- 🐛 **GitHub Issues**: Report bugs and get help
+- 💬 **Discussions**: Community Q&A and tips
+- 📝 **Wiki**: Additional examples and tutorials
+
+### Common Error Solutions
+- **Port conflicts**: Use different ports if 3000/3001 are taken
+- **Permission issues**: Check file/folder permissions
+- **Memory issues**: Close other applications to free RAM
+- **Network issues**: Disable VPN/proxy if having connection problems
 
 ---
 
-## 🚨 Important Notes
+## 🎊 Congratulations!
 
-- **First Boot**: The emulator may take 3-5 minutes to fully boot the first time
-- **Resources**: Emulator requires significant CPU and RAM
-- **Network**: Ensure ports 3000 and 3001 are available
-- **Storage**: Android SDK requires ~10GB of disk space
+You now have a fully functional Android Emulator Web Dashboard! 
+
+**What you've accomplished:**
+- 🏗️ Set up a complete Android development environment
+- 🚀 Built a real-time web application
+- 📱 Created your first virtual Android device
+- 🎮 Gained remote control over Android emulators
+
+**Ready for more?** Explore advanced features, customize configurations, and build amazing Android testing workflows!
 
 ---
 
-## 🆘 Need Help?
+<div align="center">
 
-If you encounter issues:
+**Need help?** [Report an Issue](https://github.com/rohanoid5/android-uat/issues) • [Read Docs](./ARCHITECTURE.md) • [View Examples](./API.md)
 
-1. Check the console logs in your browser (F12)
-2. Look at the backend logs in your terminal
-3. Check `emulator.log` for emulator-specific issues
-4. Ensure all dependencies are properly installed
+**Enjoying the project?** [⭐ Star the repo](https://github.com/rohanoid5/android-uat) to show your support!
+
+</div>
 
 **Happy Android Testing! 🎉**

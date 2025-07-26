@@ -427,6 +427,77 @@ class EmulatorController {
       });
     });
   }
+
+  async deleteEmulator(name) {
+    return new Promise((resolve, reject) => {
+      // First check if emulator is running and stop it
+      if (this.runningEmulators.has(name)) {
+        reject(
+          new Error(
+            `Cannot delete emulator '${name}' while it is running. Please stop it first.`
+          )
+        );
+        return;
+      }
+
+      console.log(`Deleting emulator: ${name}`);
+
+      // Use avdmanager to delete the AVD
+      const deleteCommand = `"${this.avdManagerPath}" delete avd -n "${name}"`;
+      console.log(`Delete command: ${deleteCommand}`);
+
+      const deleteProcess = spawn(
+        this.avdManagerPath,
+        ["delete", "avd", "-n", name],
+        {
+          env: {
+            ...process.env,
+            JAVA_HOME: process.env.JAVA_HOME,
+            ANDROID_HOME: this.androidHome,
+            ANDROID_SDK_ROOT: this.androidHome,
+          },
+        }
+      );
+
+      let output = "";
+      let errorOutput = "";
+
+      deleteProcess.stdout.on("data", (data) => {
+        output += data.toString();
+        console.log(`Delete stdout: ${data}`);
+      });
+
+      deleteProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+        console.log(`Delete stderr: ${data}`);
+      });
+
+      deleteProcess.on("close", (code) => {
+        console.log(`Delete process exited with code: ${code}`);
+        console.log(`Output: ${output}`);
+        console.log(`Error output: ${errorOutput}`);
+
+        if (code === 0) {
+          resolve({
+            message: `Emulator '${name}' deleted successfully`,
+            name: name,
+          });
+        } else {
+          reject(
+            new Error(
+              `Failed to delete emulator: Exit code ${code}. Output: ${output}. Error: ${errorOutput}`
+            )
+          );
+        }
+      });
+
+      deleteProcess.on("error", (error) => {
+        reject(
+          new Error(`Failed to start avdmanager for deletion: ${error.message}`)
+        );
+      });
+    });
+  }
 }
 
 module.exports = EmulatorController;

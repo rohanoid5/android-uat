@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useEmulator } from "../context/EmulatorContext";
-import { PlayIcon, StopIcon, PlusIcon } from "@heroicons/react/24/outline";
+import {
+  PlayIcon,
+  StopIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import axios from "axios";
 
 function EmulatorList({ onEmulatorSelect }) {
@@ -42,6 +47,25 @@ function EmulatorList({ onEmulatorSelect }) {
     try {
       await axios.post(`/api/emulators/${emulator.id}/stop`);
       // Status will be updated via socket
+    } catch (error) {
+      dispatch({ type: "SET_ERROR", payload: error.message });
+    }
+  };
+
+  const handleDeleteEmulator = async (emulator) => {
+    // Confirm deletion
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the emulator "${emulator.name}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/emulators/${emulator.id}`);
+      // Refresh emulator list
+      await fetchEmulators();
     } catch (error) {
       dispatch({ type: "SET_ERROR", payload: error.message });
     }
@@ -158,6 +182,17 @@ function EmulatorList({ onEmulatorSelect }) {
                   </button>
                 )}
               </div>
+
+              {/* Delete button - only show when emulator is stopped */}
+              {emulator.status === "stopped" && (
+                <button
+                  onClick={() => handleDeleteEmulator(emulator)}
+                  className="w-full control-button danger flex items-center justify-center"
+                >
+                  <TrashIcon className="h-4 w-4 mr-2" />
+                  Delete Emulator
+                </button>
+              )}
             </div>
           </div>
         ))}
