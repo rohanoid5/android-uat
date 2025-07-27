@@ -19,7 +19,7 @@ function Header({ onBackToList, selectedEmulator }) {
             <h1 className="text-xl font-semibold text-gray-900">
               {selectedEmulator
                 ? `${selectedEmulator.name} Dashboard`
-                : "Android Emulator Control"}
+                : "UAT Control Center"}
             </h1>
           </div>
 
