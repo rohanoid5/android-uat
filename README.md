@@ -1,4 +1,17 @@
-# Android Emulator Web Dashboard
+# Android Emulator Web D### � APK Preinstallation
+- **Automatic APK installation** from `/apps` directory when emulators start
+- **Bulk app deployment** for efficient testing workflows
+- **Quick Install UI** for manual preinstallation triggers
+- **Smart package detection** using Android Asset Packaging Tool (aapt)
+- **Reliable app launching** with proper activity management
+- **Installation status tracking** with detailed success/failure reporting
+
+**Auto-Launch Features:**
+- Extracts actual package names and main activities from APK files
+- Uses `am start` command for reliable app launching (replaces unreliable `monkey` command)
+- Prioritizes user-selected apps during emulator creation
+- Fallback to generic launcher intent for compatibility
+- Detailed logging for debugging launch issuesrd
 
 A comprehensive web-based platform for managing and controlling Android emulators through a modern browser interface. Built with React and Node.js, this application provides real-time emulator interaction, screen capture streaming, and full device control capabilities.
 
@@ -136,10 +149,21 @@ cp /path/to/your/app.apk apps/
 ### 5. Create Your First Emulator
 
 1. Open the web interface
-2. Click "Create Emulator"
-3. Wait for creation to complete
-4. Click "Start" to launch the emulator
-5. Click "Open Dashboard" for real-time control
+2. Click "Create Emulator" to open the creation dialog
+3. **Configure your emulator:**
+   - **Custom Name**: Enter a descriptive name (or use the auto-generated one)
+   - **API Level**: Choose Android version (API 30-34 supported)
+   - **Device Type**: Select device profile (Pixel 3/4/5, Nexus 6)
+   - **App to Preinstall**: Choose an APK from your `/apps` directory (optional)
+4. Click "Create Emulator" and wait for creation to complete
+5. Click "Start" to launch the emulator (your selected app will be automatically installed)
+6. Click "Open Dashboard" for real-time control
+
+**Enhanced Features:**
+- Custom emulator naming for better organization
+- Preselected app installation during creation
+- APK selection from `/apps` directory with live dropdown
+- Intelligent app launching after emulator starts
 
 ## 📖 Usage Examples
 
@@ -151,9 +175,13 @@ curl -X POST http://localhost:3001/api/emulators \
   -d '{
     "name": "MyTestDevice",
     "apiLevel": 34,
-    "device": "pixel_5"
+    "device": "pixel_5",
+    "preinstallApp": "TestApp.apk"
   }'
 ```
+
+**New Parameters:**
+- `preinstallApp` (optional): Specify an APK file from `/apps` directory to install automatically
 
 ### Starting an Emulator
 
@@ -273,6 +301,26 @@ sdkmanager "system-images;android-34;google_apis;arm64-v8a"
 - Ensure emulator is fully booted
 - Check ADB connection: `adb devices`
 - Restart the application
+
+**Auto-Launch Not Working**
+```bash
+# Check if APK package can be detected
+aapt dump badging apps/your-app.apk | grep "package:"
+aapt dump badging apps/your-app.apk | grep "launchable-activity"
+
+# Verify app is installed
+adb shell pm list packages -3
+
+# Test manual launch (replace with your package/activity)
+adb shell am start -n com.example.testappemulator/com.example.testappemulator.MainActivity
+```
+
+**Requirements for Auto-Launch:**
+- APK must be a valid, non-empty file
+- APK must have a launchable activity
+- App must be successfully installed on the emulator
+- System automatically extracts package name and main activity using `aapt` tool
+- Uses reliable `am start` command instead of `monkey` command
 
 For detailed troubleshooting, see the [Setup Guide](./SETUP.md#troubleshooting).
 

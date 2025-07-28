@@ -306,26 +306,47 @@ class EmulatorController {
     });
   }
 
-  async launchApp(emulatorName, packageName) {
+  async launchApp(emulatorName, packageName, mainActivity = null) {
     return new Promise((resolve, reject) => {
       if (!this.runningEmulators.has(emulatorName)) {
         reject(new Error("Emulator not running"));
         return;
       }
 
-      const command = `${this.adbPath} shell monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`;
+      let command;
+
+      if (mainActivity) {
+        // Use am start with specific activity - most reliable method
+        command = `${this.adbPath} shell am start -n ${packageName}/${mainActivity}`;
+      } else {
+        // Fallback to launcher intent if no specific activity provided
+        command = `${this.adbPath} shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER ${packageName}`;
+      }
+
+      console.log(`Launching app with command: ${command}`);
 
       exec(command, (error, stdout, stderr) => {
         if (error) {
+          console.error(`Launch command failed: ${error.message}`);
+          console.error(`stdout: ${stdout}`);
+          console.error(`stderr: ${stderr}`);
           reject(new Error(`Failed to launch app: ${error.message}`));
           return;
         }
+
+        // Check if launch was successful
+        if (stdout.includes("Error") || stderr.includes("Error")) {
+          reject(new Error(`App launch failed: ${stdout} ${stderr}`));
+          return;
+        }
+
+        console.log(`App launch output: ${stdout}`);
         resolve({ message: `App ${packageName} launched successfully` });
       });
     });
   }
 
-  // Get list of APK files from apps directory
+  // Get list of APK files from apps directory with package information
   async getPreinstallApks() {
     try {
       if (!fs.existsSync(this.appsDir)) {
@@ -334,16 +355,46 @@ class EmulatorController {
       }
 
       const files = await fs.readdir(this.appsDir);
-      const apkFiles = files
-        .filter((file) => file.toLowerCase().endsWith(".apk"))
-        .map((file) => ({
-          name: file,
-          path: path.join(this.appsDir, file),
-        }));
+      const apkFiles = [];
+
+      for (const file of files) {
+        if (file.toLowerCase().endsWith(".apk")) {
+          const apkPath = path.join(this.appsDir, file);
+          const stats = fs.statSync(apkPath);
+
+          // Skip empty files (like our test files)
+          if (stats.size === 0) {
+            console.log(`Skipping empty APK file: ${file}`);
+            continue;
+          }
+
+          const apkInfo = {
+            name: file,
+            path: apkPath,
+            size: stats.size,
+          };
+
+          // Try to get package information (optional, for debugging)
+          try {
+            const packageInfo = await this.getApkPackageInfo(apkPath);
+            if (packageInfo) {
+              apkInfo.packageName = packageInfo.packageName;
+              apkInfo.mainActivity = packageInfo.mainActivity;
+            }
+          } catch (error) {
+            console.warn(
+              `Could not extract package info for ${file}:`,
+              error.message
+            );
+          }
+
+          apkFiles.push(apkInfo);
+        }
+      }
 
       console.log(
-        `Found ${apkFiles.length} APK files for preinstallation:`,
-        apkFiles.map((f) => f.name)
+        `Found ${apkFiles.length} valid APK files for preinstallation:`,
+        apkFiles.map((f) => `${f.name} (${f.packageName || "package unknown"})`)
       );
       return apkFiles;
     } catch (error) {
@@ -356,6 +407,7 @@ class EmulatorController {
   async preinstallApks(emulatorName) {
     try {
       const apkFiles = await this.getPreinstallApks();
+      const preferredApp = this.getPreinstallAppPreference(emulatorName);
 
       if (apkFiles.length === 0) {
         console.log("No APK files found for preinstallation");
@@ -366,9 +418,43 @@ class EmulatorController {
         `Starting preinstallation of ${apkFiles.length} APKs on emulator ${emulatorName}`
       );
 
+      if (preferredApp) {
+        console.log(`Prioritizing preselected app: ${preferredApp}`);
+      }
+
       const installed = [];
       const failed = [];
 
+      // Install preferred app first if specified
+      if (preferredApp) {
+        const preferredApk = apkFiles.find((apk) => apk.name === preferredApp);
+        if (preferredApk) {
+          try {
+            console.log(`Installing preferred app ${preferredApk.name}...`);
+            await this.installApp(emulatorName, preferredApk.path);
+            installed.push(preferredApk.name);
+            console.log(
+              `✅ Successfully installed preferred app ${preferredApk.name}`
+            );
+
+            // Remove from the list to avoid duplicate installation
+            const index = apkFiles.indexOf(preferredApk);
+            apkFiles.splice(index, 1);
+          } catch (error) {
+            console.error(
+              `❌ Failed to install preferred app ${preferredApk.name}:`,
+              error.message
+            );
+            failed.push({ name: preferredApk.name, error: error.message });
+          }
+        } else {
+          console.warn(
+            `Preferred app ${preferredApp} not found in apps directory`
+          );
+        }
+      }
+
+      // Install remaining APKs
       for (const apk of apkFiles) {
         try {
           console.log(`Installing ${apk.name}...`);
@@ -381,7 +467,7 @@ class EmulatorController {
         }
       }
 
-      const result = { installed, failed };
+      const result = { installed, failed, preferredApp };
       console.log(
         `Preinstallation complete: ${installed.length} installed, ${failed.length} failed`
       );
@@ -400,62 +486,150 @@ class EmulatorController {
       return {
         installed: [],
         failed: [{ name: "preinstallation", error: error.message }],
+        preferredApp: null,
       };
     }
   }
 
-  // Get the main launcher activity of an APK
-  async getApkMainActivity(apkPath) {
+  // Get APK package information (package name and main activity)
+  async getApkPackageInfo(apkPath) {
     return new Promise((resolve, reject) => {
-      const command = `${this.androidHome}/build-tools/*/aapt dump badging "${apkPath}" | grep "launchable-activity"`;
+      if (!fs.existsSync(apkPath)) {
+        resolve(null);
+        return;
+      }
+
+      // Use aapt to extract package information
+      const command = `${this.androidHome}/build-tools/*/aapt dump badging "${apkPath}"`;
 
       exec(command, (error, stdout, stderr) => {
         if (error) {
-          resolve(null); // Return null if we can't determine the activity
+          console.error(`Failed to analyze APK ${apkPath}:`, error.message);
+          resolve(null);
           return;
         }
 
-        const match = stdout.match(/name='([^']+)'/);
-        resolve(match ? match[1] : null);
+        try {
+          // Extract package name
+          const packageMatch = stdout.match(/package: name='([^']+)'/);
+          const packageName = packageMatch ? packageMatch[1] : null;
+
+          // Extract main activity
+          const activityMatch = stdout.match(
+            /launchable-activity: name='([^']+)'/
+          );
+          const mainActivity = activityMatch ? activityMatch[1] : null;
+
+          if (packageName) {
+            resolve({
+              packageName,
+              mainActivity,
+            });
+          } else {
+            resolve(null);
+          }
+        } catch (parseError) {
+          console.error(
+            `Failed to parse APK info for ${apkPath}:`,
+            parseError.message
+          );
+          resolve(null);
+        }
       });
     });
+  }
+
+  // Get the main launcher activity of an APK (deprecated - use getApkPackageInfo instead)
+  async getApkMainActivity(apkPath) {
+    const packageInfo = await this.getApkPackageInfo(apkPath);
+    return packageInfo ? packageInfo.mainActivity : null;
   }
 
   // Launch the first preinstalled app automatically
   async launchPreinstalledApp(emulatorName) {
     try {
       const apkFiles = await this.getPreinstallApks();
+      const preferredApp = this.getPreinstallAppPreference(emulatorName);
 
       if (apkFiles.length === 0) {
+        console.log("No APK files found for launch");
         return null;
       }
 
-      // Try to launch the first APK
-      const firstApk = apkFiles[0];
-      console.log(`Attempting to launch preinstalled app: ${firstApk.name}`);
+      // Determine which app to launch
+      let targetApk = null;
+      if (preferredApp) {
+        targetApk = apkFiles.find((apk) => apk.name === preferredApp);
+        if (targetApk) {
+          console.log(`Attempting to launch preferred app: ${targetApk.name}`);
+        } else {
+          console.warn(
+            `Preferred app ${preferredApp} not found, using first available`
+          );
+          targetApk = apkFiles[0];
+        }
+      } else {
+        targetApk = apkFiles[0];
+      }
 
-      // Get package name from installed apps
-      const installedApps = await this.getInstalledApps(emulatorName);
+      if (!targetApk) {
+        console.log("No target APK found for launch");
+        return null;
+      }
 
-      // For now, we'll use a simple approach - try common package naming patterns
-      // This could be enhanced to parse the APK and get the exact package name
-      const apkBaseName = path.basename(firstApk.name, ".apk");
-      const possiblePackages = [
-        `com.example.${apkBaseName}`,
-        `com.${apkBaseName}`,
-        `com.company.${apkBaseName}`,
-      ];
+      console.log(`Attempting to launch preinstalled app: ${targetApk.name}`);
 
-      for (const packageName of possiblePackages) {
-        if (installedApps.includes(packageName)) {
-          await this.launchApp(emulatorName, packageName);
-          console.log(`✅ Launched ${packageName}`);
-          return packageName;
+      // Extract actual package information from the APK
+      const packageInfo = await this.getApkPackageInfo(targetApk.path);
+
+      if (packageInfo && packageInfo.packageName) {
+        // Get list of installed apps to verify it's installed
+        const installedApps = await this.getInstalledApps(emulatorName);
+
+        if (installedApps.includes(packageInfo.packageName)) {
+          // Launch with main activity if available, otherwise use generic launcher intent
+          await this.launchApp(
+            emulatorName,
+            packageInfo.packageName,
+            packageInfo.mainActivity
+          );
+          console.log(
+            `✅ Launched ${packageInfo.packageName} ${
+              preferredApp ? "(preferred app)" : ""
+            } with activity: ${packageInfo.mainActivity || "default launcher"}`
+          );
+          return packageInfo.packageName;
+        } else {
+          console.warn(
+            `Package ${packageInfo.packageName} not found in installed apps`
+          );
+        }
+      } else {
+        console.warn(
+          `Could not extract package information from ${targetApk.name}`
+        );
+
+        // Fallback to old guessing method for compatibility
+        console.log("Falling back to package name guessing...");
+        const apkBaseName = path.basename(targetApk.name, ".apk");
+        const possiblePackages = [
+          `com.example.${apkBaseName}`,
+          `com.${apkBaseName}`,
+          `com.company.${apkBaseName}`,
+        ];
+
+        const installedApps = await this.getInstalledApps(emulatorName);
+        for (const packageName of possiblePackages) {
+          if (installedApps.includes(packageName)) {
+            await this.launchApp(emulatorName, packageName); // No main activity for guessed packages
+            console.log(`✅ Launched ${packageName} (guessed package name)`);
+            return packageName;
+          }
         }
       }
 
       console.log(
-        "Could not automatically launch preinstalled app - package name not detected"
+        "Could not launch preinstalled app - package not found or not installed"
       );
       return null;
     } catch (error) {
@@ -493,7 +667,12 @@ class EmulatorController {
   async createEmulator(name, options = {}) {
     // Detect architecture automatically for M1 Macs
     const defaultArch = this.getDefaultArchitecture();
-    const { apiLevel = 34, arch = defaultArch, device = "pixel_5" } = options;
+    const {
+      apiLevel = 34,
+      arch = defaultArch,
+      device = "pixel_5",
+      preinstallApp,
+    } = options;
 
     return new Promise((resolve, reject) => {
       // First check if emulator already exists
@@ -559,12 +738,19 @@ class EmulatorController {
         createProcess.on("close", (code) => {
           if (code === 0) {
             console.log(`Emulator created successfully: ${output}`);
+
+            // Store preinstall app preference if provided
+            if (preinstallApp) {
+              this.storePreinstallAppPreference(name, preinstallApp);
+            }
+
             resolve({
               message: `Emulator '${name}' created successfully`,
               name: name,
               apiLevel: apiLevel,
               arch: arch,
               device: device,
+              preinstallApp: preinstallApp || null,
             });
           } else {
             reject(
@@ -632,6 +818,9 @@ class EmulatorController {
         console.log(`Error output: ${errorOutput}`);
 
         if (code === 0) {
+          // Clean up preinstall preferences
+          this.removePreinstallAppPreference(name);
+
           resolve({
             message: `Emulator '${name}' deleted successfully`,
             name: name,
@@ -650,6 +839,183 @@ class EmulatorController {
           new Error(`Failed to start avdmanager for deletion: ${error.message}`)
         );
       });
+    });
+  }
+
+  // Store preinstall app preference for an emulator
+  storePreinstallAppPreference(emulatorName, appName) {
+    try {
+      const preferencesFile = path.join(
+        __dirname,
+        "../temp/emulator-preferences.json"
+      );
+
+      // Ensure directory exists
+      fs.ensureDirSync(path.dirname(preferencesFile));
+
+      let preferences = {};
+      if (fs.existsSync(preferencesFile)) {
+        preferences = fs.readJsonSync(preferencesFile);
+      }
+
+      preferences[emulatorName] = {
+        preinstallApp: appName,
+        createdAt: new Date().toISOString(),
+      };
+
+      fs.writeJsonSync(preferencesFile, preferences, { spaces: 2 });
+      console.log(
+        `Stored preinstall preference for ${emulatorName}: ${appName}`
+      );
+    } catch (error) {
+      console.error(`Failed to store preinstall preference: ${error.message}`);
+    }
+  }
+
+  // Get preinstall app preference for an emulator
+  getPreinstallAppPreference(emulatorName) {
+    try {
+      const preferencesFile = path.join(
+        __dirname,
+        "../temp/emulator-preferences.json"
+      );
+
+      if (!fs.existsSync(preferencesFile)) {
+        return null;
+      }
+
+      const preferences = fs.readJsonSync(preferencesFile);
+      return preferences[emulatorName]?.preinstallApp || null;
+    } catch (error) {
+      console.error(`Failed to get preinstall preference: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Remove preinstall app preference when emulator is deleted
+  removePreinstallAppPreference(emulatorName) {
+    try {
+      const preferencesFile = path.join(
+        __dirname,
+        "../temp/emulator-preferences.json"
+      );
+
+      if (!fs.existsSync(preferencesFile)) {
+        return;
+      }
+
+      const preferences = fs.readJsonSync(preferencesFile);
+      delete preferences[emulatorName];
+
+      fs.writeJsonSync(preferencesFile, preferences, { spaces: 2 });
+      console.log(`Removed preinstall preference for ${emulatorName}`);
+    } catch (error) {
+      console.error(`Failed to remove preinstall preference: ${error.message}`);
+    }
+  }
+
+  // Check screenshot status for a device
+  async checkScreenshotStatus(deviceId) {
+    return new Promise((resolve) => {
+      // First try to get window info to check for FLAG_SECURE
+      const windowCommand = `"${this.adbPath}" -s ${deviceId} shell dumpsys window windows | grep -E 'mCurrentFocus|FLAG_SECURE'`;
+
+      exec(
+        windowCommand,
+        { timeout: 5000 },
+        async (windowError, windowStdout) => {
+          let hasSecureFlag = false;
+          let appName = "unknown";
+          let packageName = "unknown";
+
+          if (!windowError && windowStdout) {
+            const output = windowStdout.toLowerCase();
+            hasSecureFlag = output.includes("flag_secure");
+
+            // Extract app name from focus
+            const focusRegex = /mCurrentFocus=Window\{[^}]+\s+([^/\s]+)/;
+            const focusMatch = focusRegex.exec(windowStdout);
+            if (focusMatch) {
+              appName = focusMatch[1];
+            }
+
+            // Also try to get package name
+            const packageRegex =
+              /mCurrentFocus=Window\{[^}]+\s+([a-zA-Z0-9._]+)\//;
+            const packageMatch = packageRegex.exec(windowStdout);
+            if (packageMatch) {
+              packageName = packageMatch[1];
+            }
+          }
+
+          // If FLAG_SECURE is detected, we know screenshots are blocked
+          if (hasSecureFlag) {
+            resolve({
+              canScreenshot: false,
+              reason: "App has FLAG_SECURE protection enabled",
+              app: appName,
+              package: packageName,
+              deviceId: deviceId,
+              hasSecureFlag: true,
+              testMethod: "window_flags",
+            });
+            return;
+          }
+
+          // If no FLAG_SECURE, test with an actual screenshot attempt
+          const testScreenshotPath = path.join(
+            __dirname,
+            `../temp/test_screenshot_${Date.now()}.png`
+          );
+          const testCommand = `"${this.adbPath}" -s ${deviceId} exec-out screencap -p > "${testScreenshotPath}"`;
+
+          exec(
+            testCommand,
+            { timeout: 8000 },
+            async (testError, testStdout, testStderr) => {
+              let canScreenshot = true;
+              let reason = "No screenshot restrictions detected";
+
+              if (testError) {
+                canScreenshot = false;
+                reason = `Screenshot test failed: ${testError.message}`;
+              } else {
+                try {
+                  // Check if the file exists and has reasonable content
+                  const fs = require("fs").promises;
+                  const stats = await fs.stat(testScreenshotPath);
+
+                  if (stats.size === 0) {
+                    canScreenshot = false;
+                    reason =
+                      "Screenshot produced empty file - app may be blocking capture";
+                  } else if (stats.size < 1000) {
+                    canScreenshot = false;
+                    reason =
+                      "Screenshot file too small - possible capture restriction";
+                  }
+
+                  // Clean up test file
+                  await fs.unlink(testScreenshotPath).catch(() => {});
+                } catch (fileError) {
+                  canScreenshot = false;
+                  reason = `Screenshot file check failed: ${fileError.message}`;
+                }
+              }
+
+              resolve({
+                canScreenshot: canScreenshot,
+                reason: reason,
+                app: appName,
+                package: packageName,
+                deviceId: deviceId,
+                hasSecureFlag: false,
+                testMethod: "actual_screenshot",
+              });
+            }
+          );
+        }
+      );
     });
   }
 }

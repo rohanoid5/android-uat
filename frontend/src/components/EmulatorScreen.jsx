@@ -6,6 +6,37 @@ function EmulatorScreen({ emulator, screenStream }) {
   const containerRef = useRef(null);
   const { socket, error } = useEmulator();
   const [isInteracting, setIsInteracting] = useState(false);
+  const [screenshotStatus, setScreenshotStatus] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  // Check screenshot status
+  const checkScreenshotStatus = async () => {
+    if (!emulator) return;
+
+    setStatusLoading(true);
+    try {
+      const response = await fetch(
+        `/api/emulators/${emulator.name}/screenshot-status`
+      );
+      if (response.ok) {
+        const status = await response.json();
+        setScreenshotStatus(status);
+      }
+    } catch (error) {
+      console.error("Failed to check screenshot status:", error);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Check screenshot status periodically
+    if (emulator) {
+      checkScreenshotStatus();
+      const interval = setInterval(checkScreenshotStatus, 10000); // Check every 10 seconds
+      return () => clearInterval(interval);
+    }
+  }, [emulator]);
 
   useEffect(() => {
     if (screenStream && canvasRef.current) {
@@ -98,7 +129,7 @@ function EmulatorScreen({ emulator, screenStream }) {
 
       <div
         ref={containerRef}
-        className="emulator-screen relative overflow-hidden"
+        className="emulator-screen relative overflow-hidden m-auto"
       >
         {screenStream ? (
           <canvas
@@ -134,6 +165,50 @@ function EmulatorScreen({ emulator, screenStream }) {
           <div className="absolute inset-0 bg-blue-500 bg-opacity-20 pointer-events-none"></div>
         )}
       </div>
+
+      {/* Screenshot Status Indicator */}
+      {screenshotStatus && (
+        <div
+          className={`p-3 rounded-lg text-sm ${
+            screenshotStatus.canScreenshot
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-yellow-50 border border-yellow-200 text-yellow-800"
+          }`}
+        >
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                screenshotStatus.canScreenshot
+                  ? "bg-green-500"
+                  : "bg-yellow-500"
+              }`}
+            ></div>
+            <span className="font-medium">
+              {screenshotStatus.canScreenshot
+                ? "Screenshots Available"
+                : "Screenshots Restricted"}
+            </span>
+            {statusLoading && (
+              <div className="animate-spin w-3 h-3 border border-gray-400 border-t-transparent rounded-full"></div>
+            )}
+          </div>
+          <p className="mt-1 text-xs opacity-75">
+            {screenshotStatus.reason}
+            {screenshotStatus.app !== "unknown" && (
+              <span> • Active app: {screenshotStatus.app}</span>
+            )}
+            {screenshotStatus.testMethod && (
+              <span> • Detection: {screenshotStatus.testMethod}</span>
+            )}
+          </p>
+          {!screenshotStatus.canScreenshot && (
+            <p className="mt-1 text-xs">
+              💡 Try closing the current app or switching to a different app to
+              enable screenshots
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="text-xs text-gray-500 text-center">
         Click or tap on the screen to interact with the emulator

@@ -42,11 +42,12 @@ app.get("/api/emulators", async (req, res) => {
 
 app.post("/api/emulators", async (req, res) => {
   try {
-    const { name, apiLevel, arch, device } = req.body;
+    const { name, apiLevel, arch, device, preinstallApp } = req.body;
     const result = await emulatorController.createEmulator(name, {
       apiLevel,
       arch,
       device,
+      preinstallApp,
     });
     res.json(result);
   } catch (error) {
@@ -89,6 +90,56 @@ app.get("/api/emulators/:name/status", async (req, res) => {
     const { name } = req.params;
     const status = await emulatorController.getEmulatorStatus(name);
     res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/emulators/:name/screenshot-status", async (req, res) => {
+  try {
+    // First get connected devices
+    const { exec } = require("child_process");
+    const androidHome =
+      process.env.ANDROID_HOME ||
+      process.env.ANDROID_SDK_ROOT ||
+      `${require("os").homedir()}/Android/Sdk`;
+    const adbPath = process.env.ADB_PATH || `${androidHome}/platform-tools/adb`;
+
+    exec(
+      `"${adbPath}" devices`,
+      { timeout: 5000 },
+      async (deviceError, deviceStdout) => {
+        if (deviceError) {
+          return res
+            .status(500)
+            .json({
+              error: `ADB devices check failed: ${deviceError.message}`,
+            });
+        }
+
+        const devices = deviceStdout
+          .split("\n")
+          .filter(
+            (line) => line.includes("emulator") && line.includes("device")
+          )
+          .filter((line) => !line.includes("offline"));
+
+        if (devices.length === 0) {
+          return res.status(404).json({ error: "No emulator devices found" });
+        }
+
+        // Use the first available device (you might want to match by emulator name)
+        const deviceId = devices[0].split("\t")[0];
+
+        try {
+          const screenshotStatus =
+            await emulatorController.checkScreenshotStatus(deviceId);
+          res.json(screenshotStatus);
+        } catch (statusError) {
+          res.status(500).json({ error: statusError.message });
+        }
+      }
+    );
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

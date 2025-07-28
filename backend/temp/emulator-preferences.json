@@ -1,0 +1,10 @@
+{
+  "AppDebugV1": {
+    "preinstallApp": "app-debug.apk",
+    "createdAt": "2025-07-27T05:42:20.146Z"
+  },
+  "SpotifyTest": {
+    "preinstallApp": "spotify.apk",
+    "createdAt": "2025-07-28T06:23:24.468Z"
+  }
+}

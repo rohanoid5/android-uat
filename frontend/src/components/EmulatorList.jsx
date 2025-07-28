@@ -7,10 +7,11 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import axios from "axios";
+import CreateEmulatorModal from "./CreateEmulatorModal";
 
 function EmulatorList({ onEmulatorSelect }) {
   const { emulators, dispatch, loading } = useEmulator();
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     fetchEmulators();
@@ -71,28 +72,12 @@ function EmulatorList({ onEmulatorSelect }) {
     }
   };
 
-  const handleCreateEmulator = async () => {
-    setIsCreating(true);
-    try {
-      const newEmulatorName = `WebControllerEmulator-${Date.now()}`;
+  const handleCreateEmulator = () => {
+    setIsCreateModalOpen(true);
+  };
 
-      // Auto-detect architecture - let backend determine the best architecture
-      await axios.post("/api/emulators", {
-        name: newEmulatorName,
-        apiLevel: 34,
-        // Remove hardcoded arch - let backend auto-detect based on system
-        device: "pixel_5",
-      });
-      await fetchEmulators();
-    } catch (error) {
-      console.error("Failed to create emulator:", error);
-      dispatch({
-        type: "SET_ERROR",
-        payload: error.response?.data?.error || error.message,
-      });
-    } finally {
-      setIsCreating(false);
-    }
+  const handleCreateSuccess = () => {
+    fetchEmulators();
   };
 
   if (loading) {
@@ -111,11 +96,10 @@ function EmulatorList({ onEmulatorSelect }) {
         </h2>
         <button
           onClick={handleCreateEmulator}
-          disabled={isCreating}
           className="control-button primary flex items-center"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
-          {isCreating ? "Creating..." : "Create Emulator"}
+          Create Emulator
         </button>
       </div>
 
@@ -203,13 +187,18 @@ function EmulatorList({ onEmulatorSelect }) {
           <p className="text-gray-500 text-lg mb-4">No emulators found</p>
           <button
             onClick={handleCreateEmulator}
-            disabled={isCreating}
             className="control-button primary"
           >
             Create Your First Emulator
           </button>
         </div>
       )}
+
+      <CreateEmulatorModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }

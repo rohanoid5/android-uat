@@ -20,6 +20,45 @@ class ScreenCaptureService {
     fs.ensureDirSync(this.screenshotDir);
   }
 
+  // Check if an app is blocking screenshots
+  async checkAppScreenshotStatus(deviceId) {
+    return new Promise((resolve) => {
+      // Get current foreground app and window properties
+      const command = `"${this.adbPath}" -s ${deviceId} shell dumpsys window windows | grep -E 'mCurrentFocus|FLAG_SECURE'`;
+
+      exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
+        if (error) {
+          resolve({
+            canScreenshot: true,
+            reason: "Could not detect app status",
+            app: "unknown",
+          });
+          return;
+        }
+
+        const output = stdout.toLowerCase();
+        const hasSecureFlag = output.includes("flag_secure");
+
+        // Extract app name from focus
+        let appName = "unknown";
+        const focusMatch = stdout.match(
+          /mCurrentFocus=Window\{[^}]+\s+([^\/\s]+)/
+        );
+        if (focusMatch) {
+          appName = focusMatch[1];
+        }
+
+        resolve({
+          canScreenshot: !hasSecureFlag,
+          reason: hasSecureFlag
+            ? "App has FLAG_SECURE protection enabled"
+            : "No screenshot restrictions detected",
+          app: appName,
+        });
+      });
+    });
+  }
+
   startCapture(emulatorName, socket) {
     // Ensure emulatorName is a string to prevent [object Object] issues
     let emulatorNameStr;
@@ -237,37 +276,188 @@ class ScreenCaptureService {
 
           // Use the first available emulator device
           const deviceId = devices[0].split("\t")[0];
-          const command = `"${this.adbPath}" -s ${deviceId} exec-out screencap -p > "${screenshotPath}"`;
 
-          exec(command, { timeout: 10000 }, async (error, stdout, stderr) => {
-            decrementCounter();
+          // Try multiple screenshot methods to handle app restrictions
+          this.tryMultipleScreenshotMethods(deviceId, screenshotPath)
+            .then(async (success) => {
+              decrementCounter();
 
-            if (error) {
-              reject(
-                new Error(
-                  `Screenshot failed: ${error.message}. ADB stderr: ${stderr}`
-                )
-              );
-              return;
-            }
+              if (!success) {
+                reject(
+                  new Error(
+                    "All screenshot methods failed - app may be restricting screenshots"
+                  )
+                );
+                return;
+              }
 
-            try {
-              // Read the screenshot file and convert to base64
-              const imageBuffer = await fs.readFile(screenshotPath);
-              const base64Image = imageBuffer.toString("base64");
+              try {
+                // Read the screenshot file and convert to base64
+                const imageBuffer = await fs.readFile(screenshotPath);
 
-              // Clean up the temporary file
-              await fs.unlink(screenshotPath);
+                // Check if the file is actually a valid image (not empty)
+                if (imageBuffer.length === 0) {
+                  await fs.unlink(screenshotPath).catch(() => {}); // Clean up
+                  reject(
+                    new Error(
+                      "Screenshot file is empty - app may be blocking screen capture"
+                    )
+                  );
+                  return;
+                }
 
-              resolve(base64Image);
-            } catch (fileError) {
-              reject(
-                new Error(`Failed to process screenshot: ${fileError.message}`)
-              );
-            }
-          });
+                const base64Image = imageBuffer.toString("base64");
+
+                // Clean up the temporary file
+                await fs.unlink(screenshotPath);
+
+                resolve(base64Image);
+              } catch (fileError) {
+                reject(
+                  new Error(
+                    `Failed to process screenshot: ${fileError.message}`
+                  )
+                );
+              }
+            })
+            .catch((error) => {
+              decrementCounter();
+              reject(error);
+            });
         }
       );
+    });
+  }
+
+  // Try multiple screenshot methods to handle different scenarios
+  async tryMultipleScreenshotMethods(deviceId, screenshotPath) {
+    const methods = [
+      // Method 1: Standard exec-out screencap (fastest)
+      () => this.screenshotMethod1(deviceId, screenshotPath),
+
+      // Method 2: Save to device then pull (handles some restricted scenarios)
+      () => this.screenshotMethod2(deviceId, screenshotPath),
+
+      // Method 3: Raw screencap without -p flag (alternative encoding)
+      () => this.screenshotMethod3(deviceId, screenshotPath),
+    ];
+
+    for (let i = 0; i < methods.length; i++) {
+      try {
+        console.log(`Trying screenshot method ${i + 1} for device ${deviceId}`);
+        const success = await methods[i]();
+
+        if (success) {
+          console.log(`Screenshot method ${i + 1} succeeded`);
+          return true;
+        }
+      } catch (error) {
+        console.log(`Screenshot method ${i + 1} failed: ${error.message}`);
+
+        // If this is the last method, don't continue
+        if (i === methods.length - 1) {
+          throw error;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Method 1: Standard exec-out screencap
+  async screenshotMethod1(deviceId, screenshotPath) {
+    return new Promise((resolve, reject) => {
+      const command = `"${this.adbPath}" -s ${deviceId} exec-out screencap -p > "${screenshotPath}"`;
+
+      exec(command, { timeout: 10000 }, async (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`Method 1 failed: ${error.message}`));
+          return;
+        }
+
+        // Check if file exists and has content
+        try {
+          const stats = await fs.stat(screenshotPath);
+          resolve(stats.size > 0);
+        } catch (statError) {
+          reject(new Error(`Method 1 file check failed: ${statError.message}`));
+        }
+      });
+    });
+  }
+
+  // Method 2: Save to device storage then pull
+  async screenshotMethod2(deviceId, screenshotPath) {
+    return new Promise((resolve, reject) => {
+      const devicePath = `/sdcard/temp_screenshot_${Date.now()}.png`;
+
+      // Step 1: Take screenshot and save to device
+      const captureCommand = `"${this.adbPath}" -s ${deviceId} shell screencap "${devicePath}"`;
+
+      exec(
+        captureCommand,
+        { timeout: 10000 },
+        (captureError, captureStdout, captureStderr) => {
+          if (captureError) {
+            reject(
+              new Error(`Method 2 capture failed: ${captureError.message}`)
+            );
+            return;
+          }
+
+          // Step 2: Pull the file from device to host
+          const pullCommand = `"${this.adbPath}" -s ${deviceId} pull "${devicePath}" "${screenshotPath}"`;
+
+          exec(
+            pullCommand,
+            { timeout: 10000 },
+            async (pullError, pullStdout, pullStderr) => {
+              // Clean up device file regardless of success/failure
+              exec(
+                `"${this.adbPath}" -s ${deviceId} shell rm "${devicePath}"`,
+                () => {}
+              );
+
+              if (pullError) {
+                reject(new Error(`Method 2 pull failed: ${pullError.message}`));
+                return;
+              }
+
+              // Check if file exists and has content
+              try {
+                const stats = await fs.stat(screenshotPath);
+                resolve(stats.size > 0);
+              } catch (statError) {
+                reject(
+                  new Error(`Method 2 file check failed: ${statError.message}`)
+                );
+              }
+            }
+          );
+        }
+      );
+    });
+  }
+
+  // Method 3: Raw screencap (alternative approach)
+  async screenshotMethod3(deviceId, screenshotPath) {
+    return new Promise((resolve, reject) => {
+      const command = `"${this.adbPath}" -s ${deviceId} shell screencap | "${this.adbPath}" -s ${deviceId} shell cat > "${screenshotPath}"`;
+
+      exec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`Method 3 failed: ${error.message}`));
+          return;
+        }
+
+        // Check if file exists and has content
+        try {
+          const stats = await fs.stat(screenshotPath);
+          resolve(stats.size > 0);
+        } catch (statError) {
+          reject(new Error(`Method 3 file check failed: ${statError.message}`));
+        }
+      });
     });
   }
 
