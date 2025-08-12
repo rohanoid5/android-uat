@@ -1,0 +1,17 @@
+.default_tag: &default_tag
+  tags:
+    - backend-docker-large
+
+stages:
+  - build
+
+image: docker.phonepe.com/core/ubuntu/jammy/nodejs/20
+
+build_server_snapshot:
+  <<: *default_tag
+  when: always
+  allow_failure: true
+  image: docker.phonepe.com/web/ci-docker:0724
+  stage: build
+  script:
+    - IMAGE_TAG=1.0.${CI_PIPELINE_IID} DOCKERFILE="./Dockerfile" ENVIRONMENT="stage" ci-docker
