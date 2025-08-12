@@ -21,10 +21,16 @@ class EmulatorController {
     // Set up apps directory for pre-installation
     this.appsDir = path.join(__dirname, "../../apps");
 
-    // Set correct JAVA_HOME for M1 Macs
-    // Always override JAVA_HOME to ensure it's correct
-    process.env.JAVA_HOME =
-      "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home";
+    // Set correct JAVA_HOME based on environment
+    // Only override JAVA_HOME if we're not in a Docker container and on macOS
+    if (!process.env.DOCKER_CONTAINER && process.platform === "darwin") {
+      process.env.JAVA_HOME =
+        "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home";
+    }
+    // In Docker, use the environment variable set in Dockerfile
+    if (!process.env.JAVA_HOME) {
+      process.env.JAVA_HOME = "/usr/lib/jvm/java-17-openjdk-amd64";
+    }
 
     this.io = io;
   }
@@ -34,12 +40,13 @@ class EmulatorController {
     const arch = os.arch();
     const platform = os.platform();
 
-    // For macOS M1/M2 (Apple Silicon)
+    // For macOS M1/M2 (Apple Silicon) - always use ARM64
     if (platform === "darwin" && arch === "arm64") {
       return "arm64-v8a";
     }
 
-    // For Intel Macs and other x86_64 systems
+    // For Docker containers on x86_64, use x86_64 with KVM support
+    // For Intel Macs and other x86_64 systems, use x86_64
     return "x86_64";
   }
 
@@ -55,18 +62,33 @@ class EmulatorController {
       "-no-snapshot-save",
       "-no-snapshot-load",
       "-camera-back",
-      "webcam0",
+      "none",
       "-camera-front",
-      "webcam0",
+      "none",
       "-no-metrics",
+      "-verbose",
     ];
 
+    // Docker container optimizations with KVM support
+    if (process.env.DOCKER_CONTAINER) {
+      args.push(
+        "-accel",
+        "on", // Enable hardware acceleration
+        "-gpu",
+        "swiftshader_indirect", // Use software GPU rendering for stability
+        "-memory",
+        "2048",
+        "-cores",
+        "2",
+        "-no-window" // Run headless in Docker
+      );
+    }
     // M1 Mac optimizations
-    if (platform === "darwin" && arch === "arm64") {
+    else if (platform === "darwin" && arch === "arm64") {
       args.push("-gpu", "auto", "-memory", "2048", "-cores", "4");
     } else {
-      // Intel Mac optimizations
-      args.push("-gpu", "auto", "-memory", "2048");
+      // Intel Mac and other x86_64 optimizations
+      args.push("-gpu", "auto", "-memory", "2048", "-accel", "auto");
     }
 
     return args;
@@ -1287,8 +1309,7 @@ class EmulatorController {
           {
             env: {
               ...process.env,
-              JAVA_HOME:
-                "/Library/Java/JavaVirtualMachines/jdk-24.jdk/Contents/Home",
+              JAVA_HOME: process.env.JAVA_HOME,
             },
           }
         );

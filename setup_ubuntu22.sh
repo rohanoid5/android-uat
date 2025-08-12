@@ -57,33 +57,23 @@ apt-get install -y \
     gnupg \
     lsb-release \
     unzip \
-    libc6:i386 \
-    libncurses5:i386 \
-    libstdc++6:i386 \
     lib32z1 \
-    libbz2-1.0:i386 || {
-    
-    # Fallback: try with alternative package names for Ubuntu 22.04
-    print_warning "Some 32-bit packages failed. Trying alternatives..."
-    apt-get install -y \
-        curl \
-        wget \
-        git \
-        build-essential \
-        software-properties-common \
-        apt-transport-https \
-        ca-certificates \
-        gnupg \
-        lsb-release \
-        unzip \
-        lib32z1
-    
-    # Try individual 32-bit packages that might be available
-    apt-get install -y libc6:i386 || print_warning "libc6:i386 not available"
-    apt-get install -y libncurses5:i386 || print_warning "libncurses5:i386 not available" 
-    apt-get install -y libstdc++6:i386 || print_warning "libstdc++6:i386 not available"
-    apt-get install -y libbz2-1.0:i386 || apt-get install -y libbz2-dev:i386 || print_warning "libbz2 32-bit not available"
-}
+    xvfb \
+    libgl1-mesa-dev \
+    libegl1-mesa \
+    libgles2-mesa \
+    mesa-utils \
+    qemu-kvm \
+    libvirt-daemon-system \
+    libvirt-clients \
+    bridge-utils \
+    cpu-checker
+
+# Try individual 32-bit packages that might be available
+apt-get install -y libc6:i386 || print_warning "libc6:i386 not available"
+apt-get install -y libncurses5:i386 || print_warning "libncurses5:i386 not available" 
+apt-get install -y libstdc++6:i386 || print_warning "libstdc++6:i386 not available"
+apt-get install -y libbz2-1.0:i386 || apt-get install -y libbz2-dev:i386 || print_warning "libbz2 32-bit not available"
 
 # Node.js should already be installed in the base image, so skip this step
 print_step "Checking Node.js installation..."
@@ -107,6 +97,21 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 echo "export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> /root/.bashrc
 
 print_status "Java version: $(java -version 2>&1 | head -n 1)"
+
+# Configure KVM for Android Emulator
+print_step "Configuring KVM for Android Emulator..."
+# Check if we're running in a container that supports KVM
+if [ -e /dev/kvm ]; then
+    print_status "KVM device found, configuring permissions..."
+    # Add current user to kvm group (will be root in container)
+    usermod -aG kvm root
+    # Set permissions for KVM device
+    chmod 666 /dev/kvm
+    print_status "KVM configured successfully"
+else
+    print_warning "KVM device not found. Hardware acceleration may not be available."
+    print_warning "Make sure to run Docker with --device /dev/kvm:/dev/kvm"
+fi
 
 # Install Android SDK
 print_step "Installing Android SDK..."
