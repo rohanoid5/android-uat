@@ -69,18 +69,33 @@ class EmulatorController {
       "-verbose",
     ];
 
-    // Docker container optimizations with KVM support
+    // Docker container optimizations - force software emulation with GUI
     if (process.env.DOCKER_CONTAINER) {
       args.push(
+        "-engine",
+        "classic", // Use classic engine for better compatibility
+        "-no-accel", // Explicitly disable hardware acceleration
         "-accel",
-        "on", // Enable hardware acceleration
+        "off", // Double ensure acceleration is off
         "-gpu",
-        "swiftshader_indirect", // Use software GPU rendering for stability
+        "swiftshader_indirect", // Use software GPU rendering
         "-memory",
-        "2048",
+        "3072", // Increase memory for better stability
         "-cores",
         "2",
-        "-no-window" // Run headless in Docker
+        "-no-snapshot-load",
+        "-no-snapshot-save",
+        "-no-boot-anim", // Skip boot animation for faster startup
+        "-netdelay",
+        "none", // No network delay
+        "-netspeed",
+        "full", // Full network speed
+        "-delay-adb", // Delay ADB to allow proper startup
+        "-skin",
+        "1080x1920", // Set a proper screen size
+        "-qemu",
+        "-m",
+        "3072" // Ensure QEMU gets enough memory
       );
     }
     // M1 Mac optimizations
@@ -191,75 +206,78 @@ class EmulatorController {
       });
 
       // Wait for emulator to boot
-      setTimeout(async () => {
-        try {
-          await this.waitForEmulatorBoot(emulatorName);
-          const emulatorInfo = this.runningEmulators.get(emulatorName);
-          if (emulatorInfo) {
-            emulatorInfo.status = "running";
-          }
-
-          // Notify frontend via WebSocket
-          if (this.io) {
-            this.io.emit("emulator-status-changed", {
-              id: emulatorName,
-              name: emulatorName,
-              status: "running",
-            });
-          }
-
-          // Preinstall APKs only if this is the first time starting this emulator
-          console.log(
-            `Emulator ${emulatorName} is ready, checking installation status...`
-          );
-
-          if (this.shouldInstallApps(emulatorName)) {
-            console.log(
-              `First time starting ${emulatorName}, performing preinstallation...`
-            );
-            const preinstallResult = await this.preinstallApks(emulatorName);
-
-            // Store the installation status in preferences
-            this.updateInstallationStatus(emulatorName, preinstallResult);
-
-            // Optional: Launch the first preinstalled app automatically
-            if (preinstallResult.installed.length > 0) {
-              console.log("Attempting to launch preinstalled app...");
-              await this.launchPreinstalledApp(emulatorName);
+      setTimeout(
+        async () => {
+          try {
+            await this.waitForEmulatorBoot(emulatorName);
+            const emulatorInfo = this.runningEmulators.get(emulatorName);
+            if (emulatorInfo) {
+              emulatorInfo.status = "running";
             }
 
-            resolve({
-              message: `Emulator ${emulatorName} started successfully`,
-              status: "running",
-              preinstalled: preinstallResult,
-            });
-          } else {
-            console.log(
-              `${emulatorName} apps were already installed, skipping preinstallation`
-            );
-
-            // Still try to launch the preferred app if configured
-            const emulatorPrefs = this.getEmulatorPreferences(emulatorName);
-            if (emulatorPrefs?.preinstallApp) {
-              console.log("Attempting to launch preinstalled app...");
-              await this.launchPreinstalledApp(emulatorName);
+            // Notify frontend via WebSocket
+            if (this.io) {
+              this.io.emit("emulator-status-changed", {
+                id: emulatorName,
+                name: emulatorName,
+                status: "running",
+              });
             }
 
-            resolve({
-              message: `Emulator ${emulatorName} started successfully`,
-              status: "running",
-              preinstalled: {
-                installed: [],
-                failed: [],
-                skipped: this.getInstalledAppsList(emulatorName),
-                note: "Apps already installed on previous start",
-              },
-            });
+            // Preinstall APKs only if this is the first time starting this emulator
+            console.log(
+              `Emulator ${emulatorName} is ready, checking installation status...`
+            );
+
+            if (this.shouldInstallApps(emulatorName)) {
+              console.log(
+                `First time starting ${emulatorName}, performing preinstallation...`
+              );
+              const preinstallResult = await this.preinstallApks(emulatorName);
+
+              // Store the installation status in preferences
+              this.updateInstallationStatus(emulatorName, preinstallResult);
+
+              // Optional: Launch the first preinstalled app automatically
+              if (preinstallResult.installed.length > 0) {
+                console.log("Attempting to launch preinstalled app...");
+                await this.launchPreinstalledApp(emulatorName);
+              }
+
+              resolve({
+                message: `Emulator ${emulatorName} started successfully`,
+                status: "running",
+                preinstalled: preinstallResult,
+              });
+            } else {
+              console.log(
+                `${emulatorName} apps were already installed, skipping preinstallation`
+              );
+
+              // Still try to launch the preferred app if configured
+              const emulatorPrefs = this.getEmulatorPreferences(emulatorName);
+              if (emulatorPrefs?.preinstallApp) {
+                console.log("Attempting to launch preinstalled app...");
+                await this.launchPreinstalledApp(emulatorName);
+              }
+
+              resolve({
+                message: `Emulator ${emulatorName} started successfully`,
+                status: "running",
+                preinstalled: {
+                  installed: [],
+                  failed: [],
+                  skipped: this.getInstalledAppsList(emulatorName),
+                  note: "Apps already installed on previous start",
+                },
+              });
+            }
+          } catch (error) {
+            reject(error);
           }
-        } catch (error) {
-          reject(error);
-        }
-      }, 5000);
+        },
+        process.env.DOCKER_CONTAINER ? 15000 : 5000
+      ); // Longer initial wait for Docker
     });
   }
 
@@ -1234,24 +1252,66 @@ class EmulatorController {
 
   async waitForEmulatorBoot(emulatorName) {
     return new Promise((resolve, reject) => {
-      const maxAttempts = 30;
+      const maxAttempts = 60; // Increase timeout for slower Docker environments
       let attempts = 0;
 
       const checkBoot = () => {
-        exec(
-          `${this.adbPath} shell getprop sys.boot_completed`,
-          (error, stdout) => {
-            attempts++;
+        // First check if device is available
+        exec(`${this.adbPath} devices`, (deviceError, deviceStdout) => {
+          attempts++;
 
-            if (stdout.trim() === "1") {
-              resolve();
-            } else if (attempts >= maxAttempts) {
-              reject(new Error("Emulator boot timeout"));
-            } else {
-              setTimeout(checkBoot, 2000);
+          if (deviceError) {
+            console.log(
+              `Boot check ${attempts}/${maxAttempts}: ADB devices command failed`
+            );
+            if (attempts >= maxAttempts) {
+              reject(new Error("Emulator boot timeout - ADB not responding"));
+              return;
             }
+            setTimeout(checkBoot, 3000); // Longer delay for Docker
+            return;
           }
-        );
+
+          // Check if our emulator device is listed
+          const hasDevice =
+            deviceStdout.includes("emulator-") &&
+            deviceStdout.includes("device");
+          if (!hasDevice) {
+            console.log(
+              `Boot check ${attempts}/${maxAttempts}: No emulator device found in ADB`
+            );
+            if (attempts >= maxAttempts) {
+              reject(new Error("Emulator boot timeout - device not found"));
+              return;
+            }
+            setTimeout(checkBoot, 3000);
+            return;
+          }
+
+          // Now check boot completion
+          exec(
+            `${this.adbPath} shell getprop sys.boot_completed`,
+            (error, stdout) => {
+              if (stdout && stdout.trim() === "1") {
+                console.log(
+                  `✅ Emulator ${emulatorName} boot completed successfully`
+                );
+                resolve();
+              } else if (attempts >= maxAttempts) {
+                reject(
+                  new Error("Emulator boot timeout - boot never completed")
+                );
+              } else {
+                console.log(
+                  `Boot check ${attempts}/${maxAttempts}: Boot status: ${
+                    stdout ? stdout.trim() : "empty"
+                  }`
+                );
+                setTimeout(checkBoot, 3000);
+              }
+            }
+          );
+        });
       };
 
       checkBoot();

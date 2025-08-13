@@ -7,8 +7,20 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV DOCKER_CONTAINER=true
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 
+# Environment variables for emulator GUI support
+ENV ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
+ENV DISPLAY=:0
+ENV LIBGL_ALWAYS_SOFTWARE=1
+ENV ANDROID_AVD_HOME=/root/.android/avd
+ENV ANDROID_EMULATOR_HOME=/root/.android
+
 # Install necessary packages and setup as root
-RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    sudo \
+    x11-apps \
+    xauth \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Setup the application directory
 RUN mkdir -p /usr/src/backend

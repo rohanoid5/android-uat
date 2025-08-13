@@ -59,20 +59,26 @@ if docker ps -a --format 'table {{.Names}}' | grep -q '^android-uat-container$';
     docker rm android-uat-container >/dev/null 2>&1
 fi
 
-print_info "Starting Android UAT container with KVM support..."
+print_info "Starting Android UAT container with KVM and GUI support..."
 
-# Run Docker container with KVM support
+# Enable X11 forwarding for GUI applications
+xhost +local:docker 2>/dev/null || print_warning "Could not enable X11 forwarding. GUI may not work."
+
+# Run Docker container with KVM and X11 support
 docker run \
     --name android-uat-container \
     --privileged \
     --device /dev/kvm:/dev/kvm \
     -p 3001:3001 \
+    -e DISPLAY=$DISPLAY \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -d \
     android-uat-app
 
 if [ $? -eq 0 ]; then
     print_info "Container started successfully!"
     print_info "Application will be available at: http://localhost:3001"
+    print_info "Android emulator GUI should be visible when emulators are started"
     print_info "To check container logs: docker logs android-uat-container"
     print_info "To stop container: docker stop android-uat-container"
 else
