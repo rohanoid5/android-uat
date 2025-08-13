@@ -15,6 +15,8 @@ ENV ANDROID_AVD_HOME=/root/.android/avd
 ENV ANDROID_EMULATOR_HOME=/root/.android
 ENV QEMU_AUDIO_DRV=none
 ENV ANDROID_EMULATOR_FORCE_32BIT=false
+ENV QT_X11_NO_MITSHM=1
+ENV QT_DEBUG_PLUGINS=0
 
 # Install necessary packages and setup as root
 RUN apt-get update && apt-get install -y \
@@ -22,6 +24,9 @@ RUN apt-get update && apt-get install -y \
     x11-apps \
     xauth \
     xvfb \
+    libxcb-cursor0 \
+    libxcb-cursor-dev \
+    qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup the application directory

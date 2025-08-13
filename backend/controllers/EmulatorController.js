@@ -71,8 +71,6 @@ class EmulatorController {
     // Docker container optimizations - force software emulation with GUI
     if (process.env.DOCKER_CONTAINER) {
       args.push(
-        "-engine",
-        "auto", // Let emulator choose the best available engine
         "-no-accel", // Explicitly disable hardware acceleration
         "-gpu",
         "swiftshader_indirect", // Use software GPU rendering

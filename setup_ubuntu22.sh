@@ -70,7 +70,23 @@ apt-get install -y \
     libvirt-daemon-system \
     libvirt-clients \
     bridge-utils \
-    cpu-checker
+    cpu-checker \
+    libxcb-cursor0 \
+    libxcb-cursor-dev \
+    libxcb1-dev \
+    libxcb-xinerama0 \
+    libxcb-randr0 \
+    libxcb-render0 \
+    libxcb-shape0 \
+    libxcb-sync1 \
+    libxcb-xfixes0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-render-util0 \
+    libxcb-util1 \
+    qt5-gtk-platformtheme \
+    qtbase5-dev
 
 # Try individual 32-bit packages that might be available
 apt-get install -y libc6:i386 || print_warning "libc6:i386 not available"
