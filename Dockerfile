@@ -1,5 +1,9 @@
 FROM ubuntu:22.04
 
+# Set non-interactive frontend to prevent prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
 # Set Android SDK environment variables
 ENV ANDROID_HOME=/opt/android-sdk
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
@@ -19,7 +23,7 @@ ENV QT_X11_NO_MITSHM=1
 ENV QT_DEBUG_PLUGINS=0
 
 # Install necessary packages and setup as root
-RUN apt-get update && apt-get install -y \
+RUN apt-get update -qq && apt-get install -y -qq \
     sudo \
     x11-apps \
     xauth \

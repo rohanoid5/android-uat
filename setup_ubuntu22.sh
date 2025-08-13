@@ -5,6 +5,10 @@
 
 set -e  # Exit on any error
 
+# Set non-interactive mode to prevent prompts
+export DEBIAN_FRONTEND=noninteractive
+export TZ=UTC
+
 echo "🚀 Starting Android UAT System setup for Ubuntu 22.04 (Docker)..."
 echo "======================================================"
 
@@ -41,12 +45,12 @@ dpkg --add-architecture i386
 
 # Update system packages
 print_step "Updating system packages..."
-apt-get update
-apt-get upgrade -y
+apt-get update -qq
+apt-get upgrade -y -qq
 
 # Install essential build tools with corrected 32-bit packages
 print_step "Installing essential build tools..."
-apt-get install -y \
+apt-get install -y -qq \
     curl \
     wget \
     git \
@@ -89,10 +93,10 @@ apt-get install -y \
     qtbase5-dev
 
 # Try individual 32-bit packages that might be available
-apt-get install -y libc6:i386 || print_warning "libc6:i386 not available"
-apt-get install -y libncurses5:i386 || print_warning "libncurses5:i386 not available" 
-apt-get install -y libstdc++6:i386 || print_warning "libstdc++6:i386 not available"
-apt-get install -y libbz2-1.0:i386 || apt-get install -y libbz2-dev:i386 || print_warning "libbz2 32-bit not available"
+apt-get install -y -qq libc6:i386 || print_warning "libc6:i386 not available"
+apt-get install -y -qq libncurses5:i386 || print_warning "libncurses5:i386 not available" 
+apt-get install -y -qq libstdc++6:i386 || print_warning "libstdc++6:i386 not available"
+apt-get install -y -qq libbz2-1.0:i386 || apt-get install -y -qq libbz2-dev:i386 || print_warning "libbz2 32-bit not available"
 
 # Node.js should already be installed in the base image, so skip this step
 print_step "Checking Node.js installation..."
@@ -104,12 +108,12 @@ if command -v node &> /dev/null; then
 else
     print_step "Installing Node.js 20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
+    apt-get install -y -qq nodejs
 fi
 
 # Install Java 17 (required for modern Android SDK)
 print_step "Installing OpenJDK 17..."
-apt-get install -y openjdk-17-jdk
+apt-get install -y -qq openjdk-17-jdk
 
 # Set JAVA_HOME for current session and future sessions
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -180,7 +184,7 @@ print_step "Installing Android SDK components..."
 
 # Install FFmpeg for video processing
 print_step "Installing FFmpeg..."
-apt-get install -y ffmpeg
+apt-get install -y -qq ffmpeg
 
 # Skip KVM setup in Docker (not available in containers)
 print_step "Skipping KVM setup (Docker environment)..."
