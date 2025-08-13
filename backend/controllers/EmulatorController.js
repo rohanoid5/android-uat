@@ -45,8 +45,7 @@ class EmulatorController {
       return "arm64-v8a";
     }
 
-    // For Docker containers on x86_64, use x86_64 with KVM support
-    // For Intel Macs and other x86_64 systems, use x86_64
+    // For Docker containers and other x86_64 systems, use x86_64
     return "x86_64";
   }
 
@@ -73,16 +72,14 @@ class EmulatorController {
     if (process.env.DOCKER_CONTAINER) {
       args.push(
         "-engine",
-        "classic", // Use classic engine for better compatibility
+        "auto", // Let emulator choose the best available engine
         "-no-accel", // Explicitly disable hardware acceleration
-        "-accel",
-        "off", // Double ensure acceleration is off
         "-gpu",
         "swiftshader_indirect", // Use software GPU rendering
         "-memory",
-        "3072", // Increase memory for better stability
+        "4096", // Increase memory for stability
         "-cores",
-        "2",
+        "4",
         "-no-snapshot-load",
         "-no-snapshot-save",
         "-no-boot-anim", // Skip boot animation for faster startup
@@ -93,9 +90,11 @@ class EmulatorController {
         "-delay-adb", // Delay ADB to allow proper startup
         "-skin",
         "1080x1920", // Set a proper screen size
-        "-qemu",
-        "-m",
-        "3072" // Ensure QEMU gets enough memory
+        "-feature",
+        "-Vulkan", // Disable Vulkan to avoid compatibility issues
+        "-writable-system", // Allow system modifications
+        "-selinux",
+        "permissive" // Set permissive SELinux for Docker compatibility
       );
     }
     // M1 Mac optimizations

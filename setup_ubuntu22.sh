@@ -64,6 +64,9 @@ apt-get install -y \
     libgles2-mesa \
     mesa-utils \
     qemu-kvm \
+    qemu-system-x86 \
+    qemu-user \
+    qemu-utils \
     libvirt-daemon-system \
     libvirt-clients \
     bridge-utils \

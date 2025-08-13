@@ -7,12 +7,14 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV DOCKER_CONTAINER=true
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 
-# Environment variables for emulator GUI support
+# Environment variables for emulator GUI support and QEMU
 ENV ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
 ENV DISPLAY=:0
 ENV LIBGL_ALWAYS_SOFTWARE=1
 ENV ANDROID_AVD_HOME=/root/.android/avd
 ENV ANDROID_EMULATOR_HOME=/root/.android
+ENV QEMU_AUDIO_DRV=none
+ENV ANDROID_EMULATOR_FORCE_32BIT=false
 
 # Install necessary packages and setup as root
 RUN apt-get update && apt-get install -y \
