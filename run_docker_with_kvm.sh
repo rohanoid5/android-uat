@@ -70,6 +70,7 @@ docker run \
     --privileged \
     --device /dev/kvm:/dev/kvm \
     -p 3001:3001 \
+    -p 5900:5900 \
     -e DISPLAY=$DISPLAY \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -d \
@@ -78,7 +79,8 @@ docker run \
 if [ $? -eq 0 ]; then
     print_info "Container started successfully!"
     print_info "Application will be available at: http://localhost:3001"
-    print_info "Android emulator GUI should be visible when emulators are started"
+    print_info "Android emulator GUI accessible via VNC on port 5900"
+    print_info "You can connect to VNC at: localhost:5900 (no password required)"
     print_info "To check container logs: docker logs android-uat-container"
     print_info "To stop container: docker stop android-uat-container"
 else

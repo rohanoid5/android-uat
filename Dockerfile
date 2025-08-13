@@ -9,7 +9,7 @@ ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-too
 
 # Environment variables for emulator GUI support and QEMU
 ENV ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
-ENV DISPLAY=:0
+ENV DISPLAY=:99
 ENV LIBGL_ALWAYS_SOFTWARE=1
 ENV ANDROID_AVD_HOME=/root/.android/avd
 ENV ANDROID_EMULATOR_HOME=/root/.android
@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y \
     x11-apps \
     xauth \
     xvfb \
+    x11vnc \
+    fluxbox \
     libxcb-cursor0 \
     libxcb-cursor-dev \
     qtbase5-dev \
@@ -46,6 +48,10 @@ RUN ./setup_ubuntu22.sh
 COPY backend/ /usr/src/backend
 COPY frontend/ /usr/src/frontend
 
+# Copy the container startup script
+COPY start-container.sh /usr/src/start-container.sh
+RUN chmod +x /usr/src/start-container.sh
+
 # Install backend dependencies
 RUN npm install
 
@@ -58,7 +64,7 @@ WORKDIR /usr/src/backend
 # Globally install pm2
 RUN npm install -g pm2
 
-EXPOSE 3001
+EXPOSE 3001 5900
 
-# Startup script server (Need to replace with pm2)
-CMD ["pm2-runtime", "start", "npm", "--", "run", "start"]
+# Use our custom startup script instead of direct pm2
+CMD ["/usr/src/start-container.sh"]
