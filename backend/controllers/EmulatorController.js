@@ -72,8 +72,6 @@ class EmulatorController {
     if (process.env.DOCKER_CONTAINER) {
       args.push(
         "-no-accel", // Explicitly disable hardware acceleration
-        "-engine",
-        "classic", // Use classic engine for better Docker compatibility
         "-gpu",
         "swiftshader_indirect", // Use software GPU rendering
         "-memory",
