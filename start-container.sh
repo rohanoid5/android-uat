@@ -7,27 +7,37 @@ export DISPLAY=:99
 # Start virtual display for Android emulator GUI
 echo "🖥️  Starting virtual display for Android emulator..."
 
-# Start Xvfb (X Virtual Frame Buffer) on display :99
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -noreset &
+# Start Xvfb (X Virtual Frame Buffer) on display :99 with proper input support
+Xvfb :99 -screen 0 1080x1920x24 -nolisten tcp -noreset -extension RANDR -extension GLX +extension MIT-SHM &
 XVFB_PID=$!
 
 # Wait a moment for Xvfb to start
-sleep 2
+sleep 3
 
-# Start a simple window manager (fluxbox)
+# Start a simple window manager (fluxbox) with input focus support
 DISPLAY=:99 fluxbox &
 FLUXBOX_PID=$!
 
-# Start VNC server to make the display accessible
-x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -rfbport 5900 -shared -forever -quiet &
+# Wait for window manager to initialize
+sleep 2
+
+# Start VNC server with enhanced input support
+x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -rfbport 5900 -shared -forever -quiet \
+       -cursor arrow -cursorpos -viewonly &
 VNC_PID=$!
 
-echo "✅ Virtual display started on :99"
+echo "✅ Virtual display started on :99 (1080x1920)"
 echo "🌐 VNC server accessible on port 5900"
+echo "🎯 Input system configured for emulator compatibility"
 echo "🚀 Starting application..."
 
 # Set the display for our application
 export DISPLAY=:99
+
+# Additional environment variables for better input handling
+export QT_X11_NO_MITSHM=1
+export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
+export LIBGL_ALWAYS_SOFTWARE=1
 
 # Function to cleanup background processes when container stops
 cleanup() {

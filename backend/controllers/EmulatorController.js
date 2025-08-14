@@ -98,6 +98,10 @@ class EmulatorController {
           "-writable-system", // Allow system modifications
           "-selinux",
           "permissive", // Set permissive SELinux for Docker compatibility
+          "-prop",
+          "ro.kernel.qemu.gles=0", // Disable OpenGL ES for compatibility
+          "-prop",
+          "ro.kernel.qemu.vsync=60", // Set stable frame rate for better input response
           "-qemu",
           "-enable-kvm", // Enable KVM for hardware acceleration
           "-cpu",
@@ -127,7 +131,11 @@ class EmulatorController {
           "-Vulkan", // Disable Vulkan to avoid compatibility issues
           "-writable-system", // Allow system modifications
           "-selinux",
-          "permissive" // Set permissive SELinux for Docker compatibility
+          "permissive", // Set permissive SELinux for Docker compatibility
+          "-prop",
+          "ro.kernel.qemu.gles=0", // Disable OpenGL ES for compatibility
+          "-prop",
+          "ro.kernel.qemu.vsync=60" // Set stable frame rate for better input response
         );
       }
     }
@@ -451,6 +459,12 @@ class EmulatorController {
   async sendInput(emulatorName, action, coordinates, text) {
     return new Promise(async (resolve, reject) => {
       try {
+        console.log(
+          `🎯 Processing input for ${emulatorName}: action=${action}, coords=${JSON.stringify(
+            coordinates
+          )}, text=${text}`
+        );
+
         // First, try to get device ID from WebRTCService mappings
         let deviceId = null;
 
@@ -478,26 +492,75 @@ class EmulatorController {
         }
 
         if (!deviceId) {
+          const availableDevices = this.webRTCService
+            ? Array.from(this.webRTCService.deviceMappings.keys()).join(", ")
+            : "none";
+          console.error(
+            `❌ Cannot find device ID for emulator: ${emulatorName}. Available devices: ${availableDevices}`
+          );
           reject(
             new Error(
-              `Cannot find device ID for emulator: ${emulatorName}. Available devices: ${
-                this.webRTCService
-                  ? Array.from(this.webRTCService.deviceMappings.keys()).join(
-                      ", "
-                    )
-                  : "none"
-              }`
+              `Cannot find device ID for emulator: ${emulatorName}. Available devices: ${availableDevices}`
             )
           );
           return;
         }
 
+        // Validate device is online and responsive
+        const isOnline = await this.verifyDeviceStatus(deviceId);
+        if (!isOnline) {
+          console.error(`❌ Device ${deviceId} is not online or responsive`);
+          reject(new Error(`Device ${deviceId} is not online or responsive`));
+          return;
+        }
+
         let args = ["-s", deviceId]; // Specify the target device
+
+        // Validate coordinates for touch actions
+        if ((action === "tap" || action === "swipe") && coordinates) {
+          if (action === "tap") {
+            if (
+              typeof coordinates.x !== "number" ||
+              typeof coordinates.y !== "number"
+            ) {
+              reject(
+                new Error(
+                  `Invalid tap coordinates: x=${coordinates.x}, y=${coordinates.y}`
+                )
+              );
+              return;
+            }
+            if (
+              coordinates.x < 0 ||
+              coordinates.y < 0 ||
+              coordinates.x > 2000 ||
+              coordinates.y > 4000
+            ) {
+              console.warn(
+                `⚠️ Unusual tap coordinates: x=${coordinates.x}, y=${coordinates.y}`
+              );
+            }
+          }
+
+          if (action === "swipe") {
+            const requiredFields = ["startX", "startY", "endX", "endY"];
+            for (const field of requiredFields) {
+              if (typeof coordinates[field] !== "number") {
+                reject(
+                  new Error(
+                    `Invalid swipe coordinates: missing or invalid ${field}`
+                  )
+                );
+                return;
+              }
+            }
+          }
+        }
 
         switch (action) {
           case "tap":
             console.log(
-              `🔍 Sending tap to device ${deviceId} (${emulatorName}): x=${coordinates.x}, y=${coordinates.y}`
+              `�️ Sending tap to device ${deviceId} (${emulatorName}): x=${coordinates.x}, y=${coordinates.y}`
             );
             args.push(
               "shell",
@@ -509,7 +572,7 @@ class EmulatorController {
             break;
           case "swipe":
             console.log(
-              `🔍 Sending swipe to device ${deviceId} (${emulatorName}): from (${coordinates.startX}, ${coordinates.startY}) to (${coordinates.endX}, ${coordinates.endY})`
+              `� Sending swipe to device ${deviceId} (${emulatorName}): from (${coordinates.startX}, ${coordinates.startY}) to (${coordinates.endX}, ${coordinates.endY})`
             );
             args.push(
               "shell",
@@ -523,13 +586,15 @@ class EmulatorController {
             break;
           case "text":
             console.log(
-              `🔍 Sending text to device ${deviceId} (${emulatorName}): "${text}"`
+              `⌨️ Sending text to device ${deviceId} (${emulatorName}): "${text}"`
             );
-            args.push("shell", "input", "text", `"${text}"`);
+            // Escape special characters for shell
+            const escapedText = text.replace(/["\\]/g, "\\$&");
+            args.push("shell", "input", "text", `"${escapedText}"`);
             break;
           case "keyevent":
             console.log(
-              `🔍 Sending keyevent to device ${deviceId} (${emulatorName}): ${text}`
+              `� Sending keyevent to device ${deviceId} (${emulatorName}): ${text}`
             );
             args.push("shell", "input", "keyevent", text.toString());
             break;
@@ -538,27 +603,84 @@ class EmulatorController {
             return;
         }
 
+        console.log(
+          `🚀 Executing ADB command: ${this.adbPath} ${args.join(" ")}`
+        );
+
         // Use spawn for faster execution with device targeting
         const inputProcess = spawn(this.adbPath, args);
 
+        let stdout = "";
+        let stderr = "";
+
+        inputProcess.stdout.on("data", (data) => {
+          stdout += data.toString();
+        });
+
+        inputProcess.stderr.on("data", (data) => {
+          stderr += data.toString();
+        });
+
         inputProcess.on("close", (code) => {
           if (code === 0) {
+            console.log(`✅ Input sent successfully to ${emulatorName}`);
             resolve({
               message: "Input sent successfully",
               deviceId,
               emulator: emulatorName,
+              action,
+              coordinates,
+              text,
             });
           } else {
-            reject(new Error(`Input failed with code: ${code}`));
+            console.error(
+              `❌ Input failed with code ${code}. stderr: ${stderr}`
+            );
+            reject(
+              new Error(`Input failed with code: ${code}. Error: ${stderr}`)
+            );
           }
         });
 
         inputProcess.on("error", (error) => {
+          console.error(`❌ Input process error: ${error.message}`);
           reject(new Error(`Input failed: ${error.message}`));
         });
+
+        // Add timeout for input operations
+        setTimeout(() => {
+          if (!inputProcess.killed) {
+            inputProcess.kill();
+            reject(new Error(`Input operation timed out after 5 seconds`));
+          }
+        }, 5000);
       } catch (error) {
         reject(error);
       }
+    });
+  }
+
+  // Helper method to verify device status and responsiveness
+  async verifyDeviceStatus(deviceId) {
+    return new Promise((resolve) => {
+      exec(
+        `"${this.adbPath}" -s ${deviceId} shell echo "ping"`,
+        { timeout: 3000 },
+        (error, stdout) => {
+          if (error) {
+            console.warn(`⚠️ Device ${deviceId} ping failed: ${error.message}`);
+            resolve(false);
+          } else {
+            const isResponsive = stdout.trim() === "ping";
+            console.log(
+              `📶 Device ${deviceId} status: ${
+                isResponsive ? "responsive" : "unresponsive"
+              }`
+            );
+            resolve(isResponsive);
+          }
+        }
+      );
     });
   }
 

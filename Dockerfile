@@ -33,6 +33,9 @@ RUN apt-get update -qq && apt-get install -y -qq \
     libxcb-cursor0 \
     libxcb-cursor-dev \
     qtbase5-dev \
+    xinput \
+    xdotool \
+    xserver-xorg-input-evdev \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup the application directory
