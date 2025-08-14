@@ -72,10 +72,12 @@ class EmulatorController {
     if (process.env.DOCKER_CONTAINER) {
       args.push(
         "-no-accel", // Explicitly disable hardware acceleration
+        "-engine",
+        "classic", // Use classic engine for better Docker compatibility
         "-gpu",
         "swiftshader_indirect", // Use software GPU rendering
         "-memory",
-        "4096", // Increase memory for stability
+        "6144", // Increase memory for better performance
         "-cores",
         "4",
         "-no-snapshot-load",
@@ -92,7 +94,12 @@ class EmulatorController {
         "-Vulkan", // Disable Vulkan to avoid compatibility issues
         "-writable-system", // Allow system modifications
         "-selinux",
-        "permissive" // Set permissive SELinux for Docker compatibility
+        "permissive", // Set permissive SELinux for Docker compatibility
+        "-qemu",
+        "-enable-kvm", // Enable KVM if available for better performance
+        "-qemu",
+        "-cpu",
+        "host" // Use host CPU features
       );
     }
     // M1 Mac optimizations
@@ -1249,7 +1256,7 @@ class EmulatorController {
 
   async waitForEmulatorBoot(emulatorName) {
     return new Promise((resolve, reject) => {
-      const maxAttempts = 60; // Increase timeout for slower Docker environments
+      const maxAttempts = 120; // Increase timeout for slower Docker environments (6 minutes)
       let attempts = 0;
 
       const checkBoot = () => {
@@ -1285,13 +1292,17 @@ class EmulatorController {
             return;
           }
 
-          // Now check boot completion
+          // Now check boot completion with multiple properties
           exec(
-            `${this.adbPath} shell getprop sys.boot_completed`,
+            `${this.adbPath} shell "getprop sys.boot_completed && getprop dev.bootcomplete"`,
             (error, stdout) => {
-              if (stdout && stdout.trim() === "1") {
+              const lines = stdout ? stdout.trim().split("\n") : [];
+              const bootCompleted = lines[0] === "1";
+              const devBootComplete = lines[1] === "1";
+
+              if (bootCompleted || devBootComplete) {
                 console.log(
-                  `✅ Emulator ${emulatorName} boot completed successfully`
+                  `✅ Emulator ${emulatorName} boot completed successfully (sys.boot_completed: ${lines[0]}, dev.bootcomplete: ${lines[1]})`
                 );
                 resolve();
               } else if (attempts >= maxAttempts) {
@@ -1300,11 +1311,11 @@ class EmulatorController {
                 );
               } else {
                 console.log(
-                  `Boot check ${attempts}/${maxAttempts}: Boot status: ${
-                    stdout ? stdout.trim() : "empty"
-                  }`
+                  `Boot check ${attempts}/${maxAttempts}: Boot status: sys.boot_completed=${
+                    lines[0] || "empty"
+                  }, dev.bootcomplete=${lines[1] || "empty"}`
                 );
-                setTimeout(checkBoot, 3000);
+                setTimeout(checkBoot, 5000); // Increase check interval to 5 seconds
               }
             }
           );

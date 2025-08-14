@@ -52,16 +52,50 @@ class WebRTCService {
         return reject(new Error(`Device ${deviceId} is already recording`));
       }
 
-      // Check device status first
+      // Check device status first with multiple boot properties
       try {
         const { stdout: deviceStatus } = await execAsync(
-          `adb -s ${deviceId} shell getprop sys.boot_completed`
+          `adb -s ${deviceId} shell "getprop sys.boot_completed && getprop dev.bootcomplete"`
         );
-        if (!deviceStatus.trim() || deviceStatus.trim() !== "1") {
+        const lines = deviceStatus ? deviceStatus.trim().split("\n") : [];
+        const bootCompleted = lines[0] === "1";
+        const devBootComplete = lines[1] === "1";
+
+        if (!bootCompleted && !devBootComplete) {
           console.log(
-            `❌ Device ${deviceId} not ready, boot status: ${deviceStatus.trim()}`
+            `❌ Device ${deviceId} boot properties not ready: sys.boot_completed=${
+              lines[0] || "empty"
+            }, dev.bootcomplete=${lines[1] || "empty"}`
           );
-          return reject(new Error(`Device ${deviceId} not ready`));
+
+          // Fallback: If boot properties fail, try basic responsiveness test
+          console.log(
+            `🔄 Attempting fallback readiness check for ${deviceId}...`
+          );
+          try {
+            const { stdout: serviceStatus } = await execAsync(
+              `adb -s ${deviceId} shell "getprop init.svc.bootanim"`
+            );
+
+            // If boot animation service is stopped, device might be ready
+            if (serviceStatus.trim() === "stopped") {
+              console.log(
+                `✅ Device ${deviceId} fallback check passed (bootanim stopped)`
+              );
+            } else {
+              console.log(
+                `❌ Device ${deviceId} fallback check failed: bootanim=${serviceStatus.trim()}`
+              );
+              return reject(new Error(`Device ${deviceId} not ready`));
+            }
+          } catch (fallbackError) {
+            console.log(`❌ Fallback check failed: ${fallbackError.message}`);
+            return reject(new Error(`Device ${deviceId} not ready`));
+          }
+        } else {
+          console.log(
+            `✅ Device ${deviceId} boot ready: sys.boot_completed=${lines[0]}, dev.bootcomplete=${lines[1]}`
+          );
         }
 
         // Quick ping test to ensure device is responsive
