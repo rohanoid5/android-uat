@@ -46,10 +46,24 @@ class WebRTCService {
         outputFile ||
         path.join(outputDir, `video_${deviceId}_${timestamp}.mp4`);
 
-      // Check if device is already recording with timeout
+      // Check if device is already recording with timeout - but be more lenient
       if (this.deviceRecordingLocks.has(deviceId)) {
-        console.log(`🔒 Device ${deviceId} is already recording, skipping...`);
-        return reject(new Error(`Device ${deviceId} is already recording`));
+        const lockTime = this.deviceLockTimestamps.get(deviceId);
+        const lockAge = Date.now() - (lockTime || 0);
+
+        // If lock is older than 5 seconds, consider it stale and remove it
+        if (lockAge > 5000) {
+          console.log(
+            `🧹 Removing stale lock for device ${deviceId} (${lockAge}ms old)`
+          );
+          this.deviceRecordingLocks.delete(deviceId);
+          this.deviceLockTimestamps.delete(deviceId);
+        } else {
+          console.log(
+            `⏳ Device ${deviceId} is recording, waiting... (${lockAge}ms old)`
+          );
+          return reject(new Error(`Device ${deviceId} is busy recording`));
+        }
       }
 
       // Check device status first with multiple boot properties
@@ -159,18 +173,29 @@ class WebRTCService {
       // Ensure temp directory exists
       fs.ensureDir(outputDir)
         .then(() => {
-          // Step 1: Record video on device with ultra-low latency parameters
+          // Step 1: Record video on device with optimized parameters
           recordProcess = spawn(this.adbPath, [
             "-s",
             deviceId,
             "shell",
             "screenrecord",
             "--time-limit",
-            "1", // Minimum 1 second
+            "1", // 1 second chunks
             "--bit-rate",
-            "2000000", // Increased to 2M for faster encoding
+            "1000000", // Reduced to 1M for faster encoding
+            "--size",
+            "720x1280", // Reduced resolution for better performance
             deviceTempFile, // Unique temp file on device
           ]);
+
+          // Handle process output for debugging
+          recordProcess.stdout.on("data", (data) => {
+            console.log(`📹 screenrecord stdout: ${data}`);
+          });
+
+          recordProcess.stderr.on("data", (data) => {
+            console.log(`📹 screenrecord stderr: ${data}`);
+          });
 
           recordProcess.on("close", async (code) => {
             cleanup(); // Always cleanup first
@@ -188,15 +213,13 @@ class WebRTCService {
                   );
                 }
 
-                // Step 3: Pull video from device to server (parallel with immediate broadcast prep)
-                const pullPromise = this.executeCommand(
+                // Step 3: Pull video from device to server
+                await this.executeCommand(
                   `"${this.adbPath}" -s ${deviceId} pull ${deviceTempFile} "${rawVideoPath}"`
                 );
 
-                // Step 4: Read and process video file in parallel
-                const videoBuffer = await pullPromise.then(() =>
-                  fs.readFile(rawVideoPath)
-                );
+                // Step 4: Read video file
+                const videoBuffer = await fs.readFile(rawVideoPath);
 
                 console.log(
                   `🎥 Recorded ${videoBuffer.length} bytes for ${deviceId}`
@@ -220,7 +243,7 @@ class WebRTCService {
                   // Only try to remove device file if it exists
                   try {
                     await this.executeCommand(
-                      `"${this.adbPath}" -s ${deviceId} shell "[ -f ${deviceTempFile} ] && rm ${deviceTempFile} || echo 'file not found'"`
+                      `"${this.adbPath}" -s ${deviceId} shell "rm -f ${deviceTempFile}"`
                     );
                   } catch (cleanupError) {
                     console.warn(
@@ -239,7 +262,7 @@ class WebRTCService {
                 // Cleanup on error
                 fs.remove(rawVideoPath).catch(() => {});
                 this.executeCommand(
-                  `"${this.adbPath}" -s ${deviceId} shell rm ${deviceTempFile}`
+                  `"${this.adbPath}" -s ${deviceId} shell rm -f ${deviceTempFile}`
                 ).catch(() => {});
 
                 reject(error);
@@ -280,7 +303,7 @@ class WebRTCService {
             reject(error);
           });
 
-          // Set timeout for recording with cleanup
+          // Set timeout for recording with cleanup - increased timeout
           timeoutId = setTimeout(() => {
             if (recordProcess && !recordProcess.killed) {
               console.log(
@@ -314,7 +337,7 @@ class WebRTCService {
                 )
               );
             }
-          }, 2500); // 2.5 seconds timeout for ultra-low latency
+          }, 5000); // Increased timeout to 5 seconds
         })
         .catch((error) => {
           cleanup(); // Cleanup on fs error
@@ -703,12 +726,33 @@ class WebRTCService {
         }
 
         // Skip if already recording to prevent race conditions
-        if (isRecording || this.deviceRecordingLocks.has(deviceId)) {
+        if (isRecording) {
           console.log(
-            `⏳ Waiting for previous recording to complete for ${emulatorName}...`
+            `⏳ Previous recording still in progress for ${emulatorName}...`
           );
-          await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced wait time from 1000ms to 200ms
+          await new Promise((resolve) => setTimeout(resolve, 100));
           continue;
+        }
+
+        // Also check device lock more carefully
+        if (this.deviceRecordingLocks.has(deviceId)) {
+          const lockTime = this.deviceLockTimestamps.get(deviceId);
+          const lockAge = Date.now() - (lockTime || 0);
+
+          if (lockAge > 6000) {
+            // 6 seconds
+            console.log(
+              `🧹 Removing stale lock in recording loop for device ${deviceId} (${lockAge}ms old)`
+            );
+            this.deviceRecordingLocks.delete(deviceId);
+            this.deviceLockTimestamps.delete(deviceId);
+          } else {
+            console.log(
+              `⏳ Device ${deviceId} locked in recording loop, waiting... (${lockAge}ms old)`
+            );
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            continue;
+          }
         }
 
         console.log(`🎥 Recording chunk for ${emulatorName}...`);
@@ -740,18 +784,34 @@ class WebRTCService {
 
         isRecording = false; // Clear flag after successful recording
 
-        // Minimal delay between recordings - optimized for ultra-low latency
-        await new Promise((resolve) => setTimeout(resolve, 50)); // Reduced from 100ms to 50ms
+        // Minimal delay between recordings - optimized for better stability
+        await new Promise((resolve) => setTimeout(resolve, 100)); // Increased from 50ms to 100ms for stability
       } catch (error) {
         isRecording = false; // Clear flag on error
         consecutiveErrors++;
+
+        // Handle different types of errors differently
+        if (
+          error.message.includes("busy") ||
+          error.message.includes("already recording")
+        ) {
+          console.log(`⏳ Device busy for ${emulatorName}, will retry...`);
+          // Don't count busy errors against consecutive error limit
+          consecutiveErrors = Math.max(0, consecutiveErrors - 1);
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          continue;
+        }
+
         console.error(
           `❌ Recording error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
           error.message
         );
 
         // Only show streamError for serious errors, not device busy errors
-        if (!error.message.includes("already recording")) {
+        if (
+          !error.message.includes("already recording") &&
+          !error.message.includes("busy")
+        ) {
           this.io.to(`emulator:${emulatorName}`).emit("streamError", {
             error: error.message,
             emulator: emulatorName,
@@ -767,7 +827,9 @@ class WebRTCService {
         }
 
         // Wait shorter time before retrying after error
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Reduced from 2000ms to 1000ms
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 + consecutiveErrors * 200)
+        ); // Progressive backoff
       }
     }
 
@@ -832,7 +894,7 @@ class WebRTCService {
   startLockCleanup() {
     setInterval(() => {
       const now = Date.now();
-      const maxLockDuration = 30000; // 30 seconds max lock time
+      const maxLockDuration = 10000; // Reduced to 10 seconds max lock time
 
       for (const [deviceId, lockTime] of this.deviceLockTimestamps) {
         if (now - lockTime > maxLockDuration) {
@@ -845,7 +907,7 @@ class WebRTCService {
           this.deviceLockTimestamps.delete(deviceId);
         }
       }
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds (more frequent)
   }
 
   // Cleanup method for server shutdown
