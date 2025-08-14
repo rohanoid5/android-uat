@@ -68,37 +68,69 @@ class EmulatorController {
       "-verbose",
     ];
 
-    // Docker container optimizations - force software emulation with GUI
+    // Docker container optimizations - with conditional KVM support
     if (process.env.DOCKER_CONTAINER) {
-      args.push(
-        "-no-accel", // Explicitly disable hardware acceleration
-        "-gpu",
-        "swiftshader_indirect", // Use software GPU rendering
-        "-memory",
-        "6144", // Increase memory for better performance
-        "-cores",
-        "4",
-        "-no-snapshot-load",
-        "-no-snapshot-save",
-        "-no-boot-anim", // Skip boot animation for faster startup
-        "-netdelay",
-        "none", // No network delay
-        "-netspeed",
-        "full", // Full network speed
-        "-delay-adb", // Delay ADB to allow proper startup
-        "-skin",
-        "1080x1920", // Set a proper screen size
-        "-feature",
-        "-Vulkan", // Disable Vulkan to avoid compatibility issues
-        "-writable-system", // Allow system modifications
-        "-selinux",
-        "permissive", // Set permissive SELinux for Docker compatibility
-        "-qemu",
-        "-enable-kvm", // Enable KVM if available for better performance
-        "-qemu",
-        "-cpu",
-        "host" // Use host CPU features
-      );
+      // Check if KVM is available in the container
+      const fs = require("fs");
+      const hasKVM = fs.existsSync("/dev/kvm");
+
+      if (hasKVM) {
+        // KVM available - use hardware acceleration
+        args.push(
+          "-gpu",
+          "swiftshader_indirect", // Use software GPU rendering for compatibility
+          "-memory",
+          "6144", // Increase memory for better performance
+          "-cores",
+          "4",
+          "-no-snapshot-load",
+          "-no-snapshot-save",
+          "-no-boot-anim", // Skip boot animation for faster startup
+          "-netdelay",
+          "none", // No network delay
+          "-netspeed",
+          "full", // Full network speed
+          "-delay-adb", // Delay ADB to allow proper startup
+          "-skin",
+          "1080x1920", // Set a proper screen size
+          "-feature",
+          "-Vulkan", // Disable Vulkan to avoid compatibility issues
+          "-writable-system", // Allow system modifications
+          "-selinux",
+          "permissive", // Set permissive SELinux for Docker compatibility
+          "-qemu",
+          "-enable-kvm", // Enable KVM for hardware acceleration
+          "-qemu",
+          "-cpu",
+          "host" // Use host CPU features for better performance
+        );
+      } else {
+        // No KVM - use software emulation
+        args.push(
+          "-no-accel", // Explicitly disable hardware acceleration
+          "-gpu",
+          "swiftshader_indirect", // Use software GPU rendering
+          "-memory",
+          "4096", // Reduce memory for software emulation
+          "-cores",
+          "4",
+          "-no-snapshot-load",
+          "-no-snapshot-save",
+          "-no-boot-anim", // Skip boot animation for faster startup
+          "-netdelay",
+          "none", // No network delay
+          "-netspeed",
+          "full", // Full network speed
+          "-delay-adb", // Delay ADB to allow proper startup
+          "-skin",
+          "1080x1920", // Set a proper screen size
+          "-feature",
+          "-Vulkan", // Disable Vulkan to avoid compatibility issues
+          "-writable-system", // Allow system modifications
+          "-selinux",
+          "permissive" // Set permissive SELinux for Docker compatibility
+        );
+      }
     }
     // M1 Mac optimizations
     else if (platform === "darwin" && arch === "arm64") {
