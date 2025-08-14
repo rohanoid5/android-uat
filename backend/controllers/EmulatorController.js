@@ -100,7 +100,6 @@ class EmulatorController {
           "permissive", // Set permissive SELinux for Docker compatibility
           "-qemu",
           "-enable-kvm", // Enable KVM for hardware acceleration
-          "-qemu",
           "-cpu",
           "host" // Use host CPU features for better performance
         );
