@@ -23,7 +23,7 @@ sleep 2
 
 # Start VNC server with enhanced input support
 x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -rfbport 5900 -shared -forever -quiet \
-       -cursor arrow -cursorpos -viewonly &
+       -cursor arrow -cursorpos &
 VNC_PID=$!
 
 echo "✅ Virtual display started on :99 (1080x1920)"
