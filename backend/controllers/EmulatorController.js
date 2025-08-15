@@ -92,7 +92,7 @@ class EmulatorController {
           "full", // Full network speed
           "-delay-adb", // Delay ADB to allow proper startup
           "-skin",
-          "1080x1920", // Set a proper screen size
+          "1080x2340", // Set a proper screen size
           "-feature",
           "-Vulkan", // Disable Vulkan to avoid compatibility issues
           "-writable-system", // Allow system modifications
@@ -126,7 +126,7 @@ class EmulatorController {
           "full", // Full network speed
           "-delay-adb", // Delay ADB to allow proper startup
           "-skin",
-          "1080x1920", // Set a proper screen size
+          "1080x2340", // Set a proper screen size
           "-feature",
           "-Vulkan", // Disable Vulkan to avoid compatibility issues
           "-writable-system", // Allow system modifications

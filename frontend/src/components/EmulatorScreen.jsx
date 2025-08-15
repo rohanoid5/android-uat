@@ -344,17 +344,17 @@ function EmulatorScreen({ emulator }) {
     }
 
     // CRITICAL: Use the actual styled dimensions, not rect
-    // Your CSS sets: width: "324px", height: "700px"
+    // Canvas CSS dimensions: width: "324px", height: "703px" (1080x2340 aspect ratio)
     const displayWidth = 324;
-    const displayHeight = 700;
+    const displayHeight = 703;
 
-    // Device resolution from canvas attributes
+    // Device resolution from canvas attributes (updated to match actual emulator resolution)
     const deviceWidth = canvas.width; // 1080
     const deviceHeight = canvas.height; // 2340
 
     // Calculate scaling factors
-    const scaleX = deviceWidth / displayWidth; // 1080 / 360 = 3
-    const scaleY = deviceHeight / displayHeight; // 2340 / 780 = 3
+    const scaleX = deviceWidth / displayWidth; // 1080 / 324 = 3.333...
+    const scaleY = deviceHeight / displayHeight; // 2340 / 703 = 3.328...
 
     // Apply scaling to get device coordinates
     const deviceX = Math.round(clickX * scaleX);
@@ -570,8 +570,8 @@ function EmulatorScreen({ emulator }) {
             width={1080}
             height={2340}
             style={{
-              width: "324px", // 324px * (2340/1080) = 700px - better proportions
-              height: "700px", // Exact aspect ratio: 324 * 2.167 = 700
+              width: "324px", // Base width for good mobile phone size
+              height: "703px", // 324 * (2340/1080) = 703px - correct 1080x2340 aspect ratio
             }}
           />
 

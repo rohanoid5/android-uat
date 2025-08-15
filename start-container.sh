@@ -8,7 +8,7 @@ export DISPLAY=:99
 echo "🖥️  Starting virtual display for Android emulator..."
 
 # Start Xvfb (X Virtual Frame Buffer) on display :99 with proper input support
-Xvfb :99 -screen 0 1080x1920x24 -nolisten tcp -noreset -extension RANDR -extension GLX +extension MIT-SHM &
+Xvfb :99 -screen 0 1080x2340x24 -nolisten tcp -noreset -extension RANDR -extension GLX +extension MIT-SHM &
 XVFB_PID=$!
 
 # Wait a moment for Xvfb to start
@@ -26,7 +26,7 @@ x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -rfbport 5900 -shared -forever -q
        -cursor arrow -cursorpos &
 VNC_PID=$!
 
-echo "✅ Virtual display started on :99 (1080x1920)"
+echo "✅ Virtual display started on :99 (1080x2340)"
 echo "🌐 VNC server accessible on port 5900"
 echo "🎯 Input system configured for emulator compatibility"
 echo "🚀 Starting application..."

@@ -182,9 +182,9 @@ class WebRTCService {
             "--time-limit",
             "1", // 1 second chunks
             "--bit-rate",
-            "1000000", // Reduced to 1M for faster encoding
+            "500000", // Reduced to 500K for faster encoding
             "--size",
-            "720x1280", // Reduced resolution for better performance
+            "1080x2340", // Reduced resolution for better performance
             deviceTempFile, // Unique temp file on device
           ]);
 
