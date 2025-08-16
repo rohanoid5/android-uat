@@ -46,6 +46,25 @@ class WebRTCService {
         outputFile ||
         path.join(outputDir, `video_${deviceId}_${timestamp}.mp4`);
 
+      // Get device screen resolution for optimal recording
+      let deviceResolution = "720x1560"; // Default optimized resolution
+      try {
+        const { stdout: sizeOutput } = await execAsync(
+          `"${this.adbPath}" -s ${deviceId} shell wm size`
+        );
+        const match = sizeOutput.match(/Physical size: (\d+)x(\d+)/);
+        if (match) {
+          const [, width, height] = match;
+          // Scale down to 720p width while maintaining aspect ratio
+          const scaledWidth = 720;
+          const scaledHeight = Math.round((height / width) * scaledWidth);
+          deviceResolution = `${scaledWidth}x${scaledHeight}`;
+          console.log(`📱 Detected device resolution: ${width}x${height}, using scaled: ${deviceResolution}`);
+        }
+      } catch (resError) {
+        console.log(`⚠️ Could not detect resolution for ${deviceId}, using default: ${deviceResolution}`);
+      }
+
       // Check if device is already recording with timeout - but be more lenient
       if (this.deviceRecordingLocks.has(deviceId)) {
         const lockTime = this.deviceLockTimestamps.get(deviceId);
@@ -173,18 +192,18 @@ class WebRTCService {
       // Ensure temp directory exists
       fs.ensureDir(outputDir)
         .then(() => {
-          // Step 1: Record video on device with optimized parameters
+          // Step 1: Record video on device with optimized dynamic parameters
           recordProcess = spawn(this.adbPath, [
             "-s",
             deviceId,
             "shell",
             "screenrecord",
             "--time-limit",
-            "1", // 1 second chunks
+            "0.5", // Reduced to 0.5 second chunks for faster streaming
             "--bit-rate",
-            "500000", // Reduced to 500K for faster encoding
+            "300000", // Reduced to 300K for much smaller file sizes
             "--size",
-            "1080x2340", // Reduced resolution for better performance
+            deviceResolution, // Use dynamically detected resolution for better aspect ratio
             deviceTempFile, // Unique temp file on device
           ]);
 
@@ -597,31 +616,16 @@ class WebRTCService {
 
   async startScreenStream(socket, emulatorName) {
     try {
-      const roomName = `emulator:${emulatorName}`;
-      socket.join(roomName); // Make sure socket joins the room
-
-      const viewerCount =
-        this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
-
-      console.log(`📺 ${viewerCount} viewers now watching ${emulatorName}`);
-
-      // If this is the first viewer or recording stopped, start recording
-      if (!this.activeRecordings.has(emulatorName)) {
-        console.log(`🎬 Starting new recording for ${emulatorName}`);
-        await this.startRecording(emulatorName);
+      // Check if running in VM environment
+      const isVM = process.env.DOCKER_ENV === 'true' || process.env.VM_ENV === 'true';
+      
+      if (isVM) {
+        console.log(`🐳 VM environment detected, using screenshot streaming for ${emulatorName}`);
+        return this.startVMScreenshotStream(socket, emulatorName);
       } else {
-        console.log(`📡 Joined existing recording for ${emulatorName}`);
-
-        // Check if recording actually ended but activeRecordings wasn't cleared
-        const recording = this.activeRecordings.get(emulatorName);
-        if (recording && !recording.isActive) {
-          console.log(`🔄 Restarting stopped recording for ${emulatorName}`);
-          this.activeRecordings.delete(emulatorName);
-          await this.startRecording(emulatorName);
-        }
+        console.log(`� Local environment detected, using video recording for ${emulatorName}`);
+        return this.startVideoStream(socket, emulatorName);
       }
-
-      return { success: true };
     } catch (error) {
       console.error(
         `❌ Failed to start stream for ${emulatorName}:`,
@@ -631,8 +635,56 @@ class WebRTCService {
         error: error.message,
         emulator: emulatorName,
       });
-      return { success: false, error: error.message };
+      throw error;
     }
+  }
+
+  async startVideoStream(socket, emulatorName) {
+    const roomName = `emulator:${emulatorName}`;
+    socket.join(roomName); // Make sure socket joins the room
+
+    const viewerCount =
+      this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
+
+    console.log(`📺 ${viewerCount} viewers now watching ${emulatorName}`);
+
+    // If this is the first viewer or recording stopped, start recording
+    if (!this.activeRecordings.has(emulatorName)) {
+      console.log(`🎬 Starting new recording for ${emulatorName}`);
+      await this.startRecording(emulatorName);
+    } else {
+      console.log(`📡 Joined existing recording for ${emulatorName}`);
+
+      // Check if recording actually ended but activeRecordings wasn't cleared
+      const recording = this.activeRecordings.get(emulatorName);
+      if (recording && !recording.isActive) {
+        console.log(`🔄 Restarting stopped recording for ${emulatorName}`);
+        this.activeRecordings.delete(emulatorName);
+        await this.startRecording(emulatorName);
+      }
+    }
+
+    return { success: true };
+  }
+
+  async startVMScreenshotStream(socket, emulatorName) {
+    const roomName = `emulator:${emulatorName}`;
+    socket.join(roomName);
+
+    const viewerCount =
+      this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
+
+    console.log(`🐳 ${viewerCount} viewers now watching ${emulatorName} (VM mode)`);
+
+    // Start VM screenshot streaming if not already active
+    if (!this.activeRecordings.has(emulatorName)) {
+      console.log(`📸 Starting VM screenshot stream for ${emulatorName}`);
+      await this.startVMScreenshotRecording(emulatorName);
+    } else {
+      console.log(`📡 Joined existing VM screenshot stream for ${emulatorName}`);
+    }
+
+    return { success: true };
   }
 
   stopScreenStream(socket) {
@@ -682,6 +734,34 @@ class WebRTCService {
       });
 
       throw error; // Re-throw to be caught by startScreenStream
+    }
+  }
+
+  async startVMScreenshotRecording(emulatorName) {
+    try {
+      console.log(`🔍 Starting VM screenshot recording for ${emulatorName}...`);
+      const deviceId = await this.checkEmulatorReady(emulatorName);
+      console.log(`✅ Device ready: ${deviceId} for ${emulatorName}`);
+
+      this.activeRecordings.set(emulatorName, { deviceId, isActive: true, type: 'vm_screenshot' });
+      console.log(`📝 Added ${emulatorName} to active VM screenshot recordings`);
+
+      // Start VM screenshot loop
+      this.vmScreenshotLoop(emulatorName, deviceId);
+      console.log(`🔄 Started VM screenshot loop for ${emulatorName}`);
+    } catch (error) {
+      console.error(
+        `❌ Failed to start VM screenshot recording for ${emulatorName}:`,
+        error.message
+      );
+
+      // Notify all viewers about the error
+      this.io.to(`emulator:${emulatorName}`).emit("streamError", {
+        error: error.message,
+        emulator: emulatorName,
+      });
+
+      throw error;
     }
   }
 
@@ -784,8 +864,8 @@ class WebRTCService {
 
         isRecording = false; // Clear flag after successful recording
 
-        // Minimal delay between recordings - optimized for better stability
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Increased from 50ms to 100ms for stability
+                // Minimal delay between recordings - optimized for faster streaming
+        await new Promise((resolve) => setTimeout(resolve, 50)); // Reduced to 50ms for faster chunks
       } catch (error) {
         isRecording = false; // Clear flag on error
         consecutiveErrors++;
@@ -798,44 +878,165 @@ class WebRTCService {
           console.log(`⏳ Device busy for ${emulatorName}, will retry...`);
           // Don't count busy errors against consecutive error limit
           consecutiveErrors = Math.max(0, consecutiveErrors - 1);
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          continue;
-        }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } else if (consecutiveErrors >= maxConsecutiveErrors) {
+          console.error(
+            `💥 Too many consecutive errors for ${emulatorName} (${consecutiveErrors}):`,
+            error.message
+          );
 
-        console.error(
-          `❌ Recording error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
-          error.message
-        );
-
-        // Only show streamError for serious errors, not device busy errors
-        if (
-          !error.message.includes("already recording") &&
-          !error.message.includes("busy")
-        ) {
+          // Notify viewers about the persistent error
           this.io.to(`emulator:${emulatorName}`).emit("streamError", {
-            error: error.message,
+            error: `Recording failed: ${error.message}`,
             emulator: emulatorName,
           });
-        }
 
-        // If too many consecutive errors, stop recording
-        if (consecutiveErrors >= maxConsecutiveErrors) {
-          console.error(
-            `💥 Too many consecutive errors for ${emulatorName}, stopping recording`
-          );
+          // Stop the recording due to persistent errors
           break;
+        } else {
+          console.error(
+            `⚠️ Recording error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
+            error.message
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-
-        // Wait shorter time before retrying after error
-        await new Promise((resolve) =>
-          setTimeout(resolve, 500 + consecutiveErrors * 200)
-        ); // Progressive backoff
       }
     }
 
-    // Cleanup on exit
-    console.log(`🔚 Recording loop ended for ${emulatorName}`);
-    this.stopRecording(emulatorName);
+    // Clean up when exiting loop
+    const recording = this.activeRecordings.get(emulatorName);
+    if (recording) {
+      recording.isActive = false;
+    }
+
+    console.log(`🏁 Recording loop ended for ${emulatorName}`);
+  }
+
+  async vmScreenshotLoop(emulatorName, deviceId) {
+    console.log(`📸 Starting VM screenshot loop for ${emulatorName} (${deviceId})`);
+
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+
+    while (this.activeRecordings.has(emulatorName)) {
+      try {
+        // Check if there are still viewers first
+        const roomName = `emulator:${emulatorName}`;
+        const viewerCount =
+          this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
+
+        if (viewerCount === 0) {
+          console.log(`⚠️ No viewers for ${emulatorName}, stopping VM screenshots`);
+          break;
+        }
+
+        console.log(`📷 Capturing screenshot for ${emulatorName}...`);
+
+        // Capture optimized screenshot using Android screencap
+        const screenshotBuffer = await this.captureOptimizedScreenshot(deviceId);
+        console.log(
+          `✅ Captured ${screenshotBuffer.length} bytes for ${emulatorName}`
+        );
+
+        // Reset error counter on successful capture
+        consecutiveErrors = 0;
+
+        console.log(`👥 ${viewerCount} viewers watching ${emulatorName}`);
+
+        // Broadcast to all viewers in the room
+        this.io.to(roomName).emit("videoChunk", {
+          type: "vm_screenshot",
+          data: screenshotBuffer.toString("base64"), // Convert to base64 for frontend
+          emulator: emulatorName,
+          timestamp: Date.now(),
+          size: screenshotBuffer.length,
+        });
+
+        console.log(
+          `📡 Broadcasted screenshot for ${emulatorName} to ${viewerCount} viewers`
+        );
+
+        // Faster refresh rate for screenshots (more responsive than video)
+        await new Promise((resolve) => setTimeout(resolve, 200)); // 5 FPS for screenshots - faster refresh
+      } catch (error) {
+        consecutiveErrors++;
+
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          console.error(
+            `💥 Too many consecutive errors for VM ${emulatorName} (${consecutiveErrors}):`,
+            error.message
+          );
+
+          // Notify viewers about the persistent error
+          this.io.to(`emulator:${emulatorName}`).emit("streamError", {
+            error: `VM screenshot failed: ${error.message}`,
+            emulator: emulatorName,
+          });
+
+          // Stop the recording due to persistent errors
+          break;
+        } else {
+          console.error(
+            `⚠️ VM screenshot error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
+            error.message
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+    }
+
+    // Clean up when exiting loop
+    const recording = this.activeRecordings.get(emulatorName);
+    if (recording) {
+      recording.isActive = false;
+    }
+
+    console.log(`🏁 VM screenshot loop ended for ${emulatorName}`);
+  }
+
+  async captureOptimizedScreenshot(deviceId) {
+    const timestamp = Date.now();
+    const tempFile = `/sdcard/temp_screenshot_${timestamp}.png`;
+    
+    try {
+      // Capture screenshot with optimized settings for speed and size
+      await this.executeCommand(
+        `"${this.adbPath}" -s ${deviceId} shell screencap -p ${tempFile}`
+      );
+
+      // Pull screenshot from device
+      const localPath = `/tmp/screenshot_${deviceId}_${timestamp}.png`;
+      await this.executeCommand(
+        `"${this.adbPath}" -s ${deviceId} pull ${tempFile} "${localPath}"`
+      );
+
+      // Read screenshot data
+      const screenshotBuffer = await fs.readFile(localPath);
+
+      // Cleanup files in background
+      setImmediate(async () => {
+        await Promise.all([
+          fs.remove(localPath).catch(err => 
+            console.warn(`Failed to remove local screenshot: ${err.message}`)
+          ),
+          this.executeCommand(
+            `"${this.adbPath}" -s ${deviceId} shell rm -f ${tempFile}`
+          ).catch(err => 
+            console.warn(`Failed to cleanup device screenshot: ${err.message}`)
+          )
+        ]);
+      });
+
+      return screenshotBuffer;
+    } catch (error) {
+      // Cleanup on error
+      fs.remove(`/tmp/screenshot_${deviceId}_${timestamp}.png`).catch(() => {});
+      this.executeCommand(
+        `"${this.adbPath}" -s ${deviceId} shell rm -f ${tempFile}`
+      ).catch(() => {});
+      
+      throw error;
+    }
   }
 
   // Handle socket disconnection

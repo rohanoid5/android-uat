@@ -34,10 +34,12 @@ echo "🚀 Starting application..."
 # Set the display for our application
 export DISPLAY=:99
 
-# Additional environment variables for better input handling
+# Additional environment variables for better input handling and VM detection
 export QT_X11_NO_MITSHM=1
 export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
 export LIBGL_ALWAYS_SOFTWARE=1
+export DOCKER_ENV=true
+export VM_ENV=true
 
 # Function to cleanup background processes when container stops
 cleanup() {

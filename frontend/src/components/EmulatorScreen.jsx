@@ -75,8 +75,30 @@ function EmulatorScreen({ emulator }) {
         img.src = `data:image/png;base64,${data.data}`;
         setIsStreaming(true);
         setStreamError(null);
+      } else if (
+        data.type === "vm_screenshot" &&
+        data.data &&
+        canvasRef.current
+      ) {
+        // Handle VM screenshot data (optimized for VM environments)
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+
+        img.onload = () => {
+          // Clear and draw with smooth scaling for VM screenshots
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "medium";
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          setLastUpdate(new Date().toLocaleTimeString());
+        };
+
+        img.src = `data:image/png;base64,${data.data}`;
+        setIsStreaming(true);
+        setStreamError(null);
       } else if (data.type === "mp4" && data.data) {
-        // Handle WebRTC video data with smoother playback
+        // Handle WebRTC video data with smoother playback (optimized for local)
         try {
           // Convert base64 to Uint8Array
           const binaryString = atob(data.data);
