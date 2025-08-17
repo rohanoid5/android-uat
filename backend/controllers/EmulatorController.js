@@ -270,6 +270,9 @@ class EmulatorController {
               `Emulator ${emulatorName} is ready, checking installation status...`
             );
 
+            // Enhanced diagnostic logging
+            await this.logEmulatorDiagnostics(emulatorName);
+
             if (this.shouldInstallApps(emulatorName)) {
               console.log(
                 `First time starting ${emulatorName}, performing preinstallation...`
@@ -282,7 +285,26 @@ class EmulatorController {
               // Optional: Launch the first preinstalled app automatically
               if (preinstallResult.installed.length > 0) {
                 console.log("Attempting to launch preinstalled app...");
-                await this.launchPreinstalledApp(emulatorName);
+                try {
+                  const launchResult = await this.launchPreinstalledApp(
+                    emulatorName
+                  );
+                  if (launchResult) {
+                    console.log(
+                      `✅ Successfully launched app: ${launchResult}`
+                    );
+                  } else {
+                    console.log(
+                      "⚠️ No app was launched (none available or failed)"
+                    );
+                  }
+                } catch (launchError) {
+                  console.error(
+                    `❌ Failed to launch preinstalled app: ${launchError.message}`
+                  );
+                }
+              } else {
+                console.log("⚠️ No apps were installed, nothing to launch");
               }
 
               resolve({
@@ -299,7 +321,26 @@ class EmulatorController {
               const emulatorPrefs = this.getEmulatorPreferences(emulatorName);
               if (emulatorPrefs?.preinstallApp) {
                 console.log("Attempting to launch preinstalled app...");
-                await this.launchPreinstalledApp(emulatorName);
+                try {
+                  const launchResult = await this.launchPreinstalledApp(
+                    emulatorName
+                  );
+                  if (launchResult) {
+                    console.log(
+                      `✅ Successfully launched app: ${launchResult}`
+                    );
+                  } else {
+                    console.log(
+                      "⚠️ No app was launched (none available or failed)"
+                    );
+                  }
+                } catch (launchError) {
+                  console.error(
+                    `❌ Failed to launch preinstalled app: ${launchError.message}`
+                  );
+                }
+              } else {
+                console.log("ℹ️ No preferred app configured for auto-launch");
               }
 
               resolve({
@@ -1285,13 +1326,20 @@ class EmulatorController {
   // Launch the first preinstalled app automatically
   async launchPreinstalledApp(emulatorName) {
     try {
+      console.log(`🚀 launchPreinstalledApp called for: ${emulatorName}`);
+
       const apkFiles = await this.getPreinstallApks();
+      console.log(`📦 Found ${apkFiles.length} APK files for launch`);
+
       const emulatorPrefs = this.getEmulatorPreferences(emulatorName);
       const preferredApp = emulatorPrefs?.preinstallApp;
       const deeplink = emulatorPrefs?.deeplink;
 
+      console.log(`⚙️ Preferred app: ${preferredApp || "None"}`);
+      console.log(`🔗 Deeplink: ${deeplink || "None"}`);
+
       if (apkFiles.length === 0) {
-        console.log("No APK files found for launch");
+        console.log("❌ No APK files found for launch");
         return null;
       }
 
@@ -1300,36 +1348,43 @@ class EmulatorController {
       if (preferredApp) {
         targetApk = apkFiles.find((apk) => apk.name === preferredApp);
         if (targetApk) {
-          console.log(`Attempting to launch preferred app: ${targetApk.name}`);
+          console.log(`✅ Found preferred app: ${targetApk.name}`);
         } else {
           console.warn(
-            `Preferred app ${preferredApp} not found, using first available`
+            `⚠️ Preferred app ${preferredApp} not found, using first available`
           );
           targetApk = apkFiles[0];
         }
       } else {
         targetApk = apkFiles[0];
+        console.log(`📱 Using first available app: ${targetApk.name}`);
       }
 
       if (!targetApk) {
-        console.log("No target APK found for launch");
+        console.log("❌ No target APK found for launch");
         return null;
       }
 
       console.log(
-        `Attempting to launch preinstalled app: ${targetApk.name}${
+        `🎯 Attempting to launch: ${targetApk.name}${
           deeplink ? ` with deeplink: ${deeplink}` : ""
         }`
       );
 
       // Extract actual package information from the APK
       const packageInfo = await this.getApkPackageInfo(targetApk.path);
+      console.log(`📋 Package info:`, packageInfo);
 
       if (packageInfo && packageInfo.packageName) {
         // Get list of installed apps to verify it's installed
         const installedApps = await this.getInstalledApps(emulatorName);
+        console.log(
+          `🔍 Checking if ${packageInfo.packageName} is installed...`
+        );
 
         if (installedApps.includes(packageInfo.packageName)) {
+          console.log(`✅ Package ${packageInfo.packageName} is installed`);
+
           // Use deeplink if available, otherwise launch normally
           if (deeplink) {
             try {
@@ -1353,6 +1408,9 @@ class EmulatorController {
           }
 
           // Normal launch (either no deeplink or deeplink failed)
+          console.log(
+            `🚀 Launching normally: ${packageInfo.packageName}/${packageInfo.mainActivity}`
+          );
           await this.launchApp(
             emulatorName,
             packageInfo.packageName,
@@ -1368,16 +1426,25 @@ class EmulatorController {
           return packageInfo.packageName;
         } else {
           console.warn(
-            `Package ${packageInfo.packageName} not found in installed apps`
+            `❌ Package ${packageInfo.packageName} not found in installed apps`
+          );
+          console.log(
+            `📱 Available installed apps:`,
+            installedApps.filter(
+              (pkg) =>
+                !pkg.startsWith("com.android") &&
+                !pkg.startsWith("com.google") &&
+                !pkg.startsWith("android")
+            )
           );
         }
       } else {
         console.warn(
-          `Could not extract package information from ${targetApk.name}`
+          `❌ Could not extract package information from ${targetApk.name}`
         );
 
         // Fallback to old guessing method for compatibility
-        console.log("Falling back to package name guessing...");
+        console.log("🔄 Falling back to package name guessing...");
         const apkBaseName = path.basename(targetApk.name, ".apk");
         const possiblePackages = [
           `com.example.${apkBaseName}`,
@@ -1752,6 +1819,61 @@ class EmulatorController {
   }
 
   // Check if apps should be installed (first time start)
+  // Enhanced diagnostic logging for emulator startup
+  async logEmulatorDiagnostics(emulatorName) {
+    try {
+      console.log(`🔍 Diagnostic check for emulator: ${emulatorName}`);
+
+      // Check if apps directory exists and what's in it
+      const appsExist = await fs.pathExists(this.appsDir);
+      console.log(`📁 Apps directory exists: ${appsExist}`);
+
+      if (appsExist) {
+        const apkFiles = await this.getPreinstallApks();
+        console.log(`📦 APK files found: ${apkFiles.length}`);
+        apkFiles.forEach((apk, index) => {
+          console.log(
+            `   ${index + 1}. ${apk.name} (${(apk.size / 1024 / 1024).toFixed(
+              2
+            )} MB)`
+          );
+        });
+      } else {
+        console.log(`⚠️ Apps directory not found at: ${this.appsDir}`);
+        console.log(
+          `💡 To enable auto-start: mkdir ${this.appsDir} && cp your-app.apk ${this.appsDir}/`
+        );
+      }
+
+      // Check installation status
+      const shouldInstall = this.shouldInstallApps(emulatorName);
+      console.log(`🔄 Should install apps: ${shouldInstall}`);
+
+      // Check emulator preferences
+      const prefs = this.getEmulatorPreferences(emulatorName);
+      console.log(`⚙️ Emulator preferences:`, prefs || "None configured");
+
+      // Check currently installed apps
+      try {
+        const installedApps = await this.getInstalledApps(emulatorName);
+        const userApps = installedApps.filter(
+          (pkg) =>
+            !pkg.startsWith("com.android") &&
+            !pkg.startsWith("com.google") &&
+            !pkg.startsWith("android")
+        );
+        console.log(`📱 User-installed apps: ${userApps.length}`);
+        userApps.forEach((app, index) => {
+          console.log(`   ${index + 1}. ${app}`);
+        });
+      } catch (error) {
+        console.log(`⚠️ Could not get installed apps: ${error.message}`);
+      }
+    } catch (error) {
+      console.error(`❌ Diagnostic check failed: ${error.message}`);
+    }
+  }
+
   shouldInstallApps(emulatorName) {
     try {
       const preferencesFile = path.join(

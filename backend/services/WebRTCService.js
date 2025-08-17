@@ -59,10 +59,14 @@ class WebRTCService {
           const scaledWidth = 720;
           const scaledHeight = Math.round((height / width) * scaledWidth);
           deviceResolution = `${scaledWidth}x${scaledHeight}`;
-          console.log(`📱 Detected device resolution: ${width}x${height}, using scaled: ${deviceResolution}`);
+          console.log(
+            `📱 Detected device resolution: ${width}x${height}, using scaled: ${deviceResolution}`
+          );
         }
       } catch (resError) {
-        console.log(`⚠️ Could not detect resolution for ${deviceId}, using default: ${deviceResolution}`);
+        console.log(
+          `⚠️ Could not detect resolution for ${deviceId}, using default: ${deviceResolution}`
+        );
       }
 
       // Check if device is already recording with timeout - but be more lenient
@@ -495,7 +499,7 @@ class WebRTCService {
     });
   }
 
-  // Updated checkEmulatorReady with caching
+  // Updated checkEmulatorReady with caching and better restart handling
   async checkEmulatorReady(emulatorName) {
     // First check cache
     if (this.deviceMappings.has(emulatorName)) {
@@ -504,10 +508,26 @@ class WebRTCService {
         `📋 Using cached mapping: ${emulatorName} → ${cachedDeviceId}`
       );
 
-      // Verify the device is still online
+      // Verify the device is still online and responding
       const isOnline = await this.verifyDeviceOnline(cachedDeviceId);
       if (isOnline) {
-        return cachedDeviceId;
+        // Additional check: verify the device is actually the emulator we want
+        try {
+          const avdName = await this.getAvdName(cachedDeviceId);
+          if (this.isEmulatorNameMatch(emulatorName, avdName)) {
+            return cachedDeviceId;
+          } else {
+            console.log(
+              `⚠️ Cached device ${cachedDeviceId} is now different emulator (${avdName}), refreshing...`
+            );
+            this.deviceMappings.delete(emulatorName);
+          }
+        } catch (error) {
+          console.log(
+            `⚠️ Cannot verify cached device ${cachedDeviceId}, refreshing mappings...`
+          );
+          this.deviceMappings.delete(emulatorName);
+        }
       } else {
         console.log(
           `⚠️ Cached device ${cachedDeviceId} is offline, refreshing mappings...`
@@ -617,14 +637,17 @@ class WebRTCService {
   async startScreenStream(socket, emulatorName) {
     try {
       // Check if running in VM environment
-      const isVM = process.env.DOCKER_ENV === 'true' || process.env.VM_ENV === 'true';
-      
+      const isVM =
+        process.env.DOCKER_ENV === "true" || process.env.VM_ENV === "true";
+
       if (isVM) {
-        console.log(`🐳 VM environment detected, using screenshot streaming for ${emulatorName}`);
-        return this.startVMScreenshotStream(socket, emulatorName);
+        console.log(`� Screenshot streaming for ${emulatorName}`);
+        return this.startScreenshotStream(socket, emulatorName);
       } else {
-        console.log(`� Local environment detected, using video recording for ${emulatorName}`);
-        return this.startVideoStream(socket, emulatorName);
+        console.log(
+          `� Local environment detected, using video recording for ${emulatorName}`
+        );
+        return this.startScreenshotStream(socket, emulatorName);
       }
     } catch (error) {
       console.error(
@@ -643,8 +666,7 @@ class WebRTCService {
     const roomName = `emulator:${emulatorName}`;
     socket.join(roomName); // Make sure socket joins the room
 
-    const viewerCount =
-      this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
+    const viewerCount = this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
 
     console.log(`📺 ${viewerCount} viewers now watching ${emulatorName}`);
 
@@ -667,21 +689,32 @@ class WebRTCService {
     return { success: true };
   }
 
-  async startVMScreenshotStream(socket, emulatorName) {
+  async startScreenshotStream(socket, emulatorName) {
     const roomName = `emulator:${emulatorName}`;
     socket.join(roomName);
 
-    const viewerCount =
-      this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
+    const viewerCount = this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
 
-    console.log(`🐳 ${viewerCount} viewers now watching ${emulatorName} (VM mode)`);
+    console.log(
+      `� ${viewerCount} viewers now watching ${emulatorName} (screenshot mode)`
+    );
 
-    // Start VM screenshot streaming if not already active
+    // Start screenshot streaming if not already active
     if (!this.activeRecordings.has(emulatorName)) {
-      console.log(`📸 Starting VM screenshot stream for ${emulatorName}`);
-      await this.startVMScreenshotRecording(emulatorName);
+      console.log(`📸 Starting screenshot stream for ${emulatorName}`);
+      // Clean up any stale data before starting
+      await this.cleanupStaleData(emulatorName);
+      await this.startScreenshotRecording(emulatorName);
     } else {
-      console.log(`📡 Joined existing VM screenshot stream for ${emulatorName}`);
+      console.log(`📡 Joined existing screenshot stream for ${emulatorName}`);
+
+      // Verify the existing recording is actually working
+      const recording = this.activeRecordings.get(emulatorName);
+      if (recording && !recording.isActive) {
+        console.log(`🔄 Restarting inactive recording for ${emulatorName}`);
+        await this.cleanupStaleData(emulatorName);
+        await this.startScreenshotRecording(emulatorName);
+      }
     }
 
     return { success: true };
@@ -737,21 +770,41 @@ class WebRTCService {
     }
   }
 
-  async startVMScreenshotRecording(emulatorName) {
+  async startScreenshotRecording(emulatorName) {
     try {
-      console.log(`🔍 Starting VM screenshot recording for ${emulatorName}...`);
+      console.log(`🔍 Starting screenshot recording for ${emulatorName}...`);
       const deviceId = await this.checkEmulatorReady(emulatorName);
       console.log(`✅ Device ready: ${deviceId} for ${emulatorName}`);
 
-      this.activeRecordings.set(emulatorName, { deviceId, isActive: true, type: 'vm_screenshot' });
-      console.log(`📝 Added ${emulatorName} to active VM screenshot recordings`);
+      // Additional verification: ensure device can respond to basic commands
+      try {
+        await this.executeCommand(
+          `"${this.adbPath}" -s ${deviceId} shell echo "test"`
+        );
+        console.log(`✅ Device ${deviceId} responds to commands`);
+      } catch (testError) {
+        console.log(`⚠️ Device ${deviceId} not responsive, cleaning up...`);
+        // Clean up and try again
+        this.deviceMappings.delete(emulatorName);
+        await this.refreshEmulatorMappings();
+        throw new Error(
+          `Device ${deviceId} not responsive: ${testError.message}`
+        );
+      }
 
-      // Start VM screenshot loop
-      this.vmScreenshotLoop(emulatorName, deviceId);
-      console.log(`🔄 Started VM screenshot loop for ${emulatorName}`);
+      this.activeRecordings.set(emulatorName, {
+        deviceId,
+        isActive: true,
+        type: "screenshot",
+      });
+      console.log(`📝 Added ${emulatorName} to active screenshot recordings`);
+
+      // Start screenshot loop
+      this.screenshotLoop(emulatorName, deviceId);
+      console.log(`🔄 Started screenshot loop for ${emulatorName}`);
     } catch (error) {
       console.error(
-        `❌ Failed to start VM screenshot recording for ${emulatorName}:`,
+        `❌ Failed to start screenshot recording for ${emulatorName}:`,
         error.message
       );
 
@@ -864,7 +917,7 @@ class WebRTCService {
 
         isRecording = false; // Clear flag after successful recording
 
-                // Minimal delay between recordings - optimized for faster streaming
+        // Minimal delay between recordings - optimized for faster streaming
         await new Promise((resolve) => setTimeout(resolve, 50)); // Reduced to 50ms for faster chunks
       } catch (error) {
         isRecording = false; // Clear flag on error
@@ -912,8 +965,10 @@ class WebRTCService {
     console.log(`🏁 Recording loop ended for ${emulatorName}`);
   }
 
-  async vmScreenshotLoop(emulatorName, deviceId) {
-    console.log(`📸 Starting VM screenshot loop for ${emulatorName} (${deviceId})`);
+  async screenshotLoop(emulatorName, deviceId) {
+    console.log(
+      `📸 Starting screenshot loop for ${emulatorName} (${deviceId})`
+    );
 
     let consecutiveErrors = 0;
     const maxConsecutiveErrors = 5;
@@ -926,14 +981,18 @@ class WebRTCService {
           this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
 
         if (viewerCount === 0) {
-          console.log(`⚠️ No viewers for ${emulatorName}, stopping VM screenshots`);
+          console.log(
+            `⚠️ No viewers for ${emulatorName}, stopping screenshots`
+          );
           break;
         }
 
         console.log(`📷 Capturing screenshot for ${emulatorName}...`);
 
         // Capture optimized screenshot using Android screencap
-        const screenshotBuffer = await this.captureOptimizedScreenshot(deviceId);
+        const screenshotBuffer = await this.captureOptimizedScreenshot(
+          deviceId
+        );
         console.log(
           `✅ Captured ${screenshotBuffer.length} bytes for ${emulatorName}`
         );
@@ -945,7 +1004,7 @@ class WebRTCService {
 
         // Broadcast to all viewers in the room
         this.io.to(roomName).emit("videoChunk", {
-          type: "vm_screenshot",
+          type: "screenshot",
           data: screenshotBuffer.toString("base64"), // Convert to base64 for frontend
           emulator: emulatorName,
           timestamp: Date.now(),
@@ -961,15 +1020,38 @@ class WebRTCService {
       } catch (error) {
         consecutiveErrors++;
 
+        // Check for device disconnection errors
+        if (
+          error.message.includes("device offline") ||
+          error.message.includes("device not found") ||
+          error.message.includes("no devices/emulators found")
+        ) {
+          console.error(
+            `📱 Device disconnected for ${emulatorName}: ${error.message}`
+          );
+
+          // Clear device mapping to force refresh on next attempt
+          this.deviceMappings.delete(emulatorName);
+
+          // Notify viewers about device disconnection
+          this.io.to(`emulator:${emulatorName}`).emit("streamError", {
+            error: `Emulator disconnected: ${error.message}`,
+            emulator: emulatorName,
+          });
+
+          // Stop the loop immediately for device disconnection
+          break;
+        }
+
         if (consecutiveErrors >= maxConsecutiveErrors) {
           console.error(
-            `💥 Too many consecutive errors for VM ${emulatorName} (${consecutiveErrors}):`,
+            `💥 Too many consecutive errors for ${emulatorName} (${consecutiveErrors}):`,
             error.message
           );
 
           // Notify viewers about the persistent error
           this.io.to(`emulator:${emulatorName}`).emit("streamError", {
-            error: `VM screenshot failed: ${error.message}`,
+            error: `Screenshot failed: ${error.message}`,
             emulator: emulatorName,
           });
 
@@ -977,7 +1059,7 @@ class WebRTCService {
           break;
         } else {
           console.error(
-            `⚠️ VM screenshot error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
+            `⚠️ Screenshot error for ${emulatorName} (${consecutiveErrors}/${maxConsecutiveErrors}):`,
             error.message
           );
           await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -991,13 +1073,13 @@ class WebRTCService {
       recording.isActive = false;
     }
 
-    console.log(`🏁 VM screenshot loop ended for ${emulatorName}`);
+    console.log(`🏁 Screenshot loop ended for ${emulatorName}`);
   }
 
   async captureOptimizedScreenshot(deviceId) {
     const timestamp = Date.now();
     const tempFile = `/sdcard/temp_screenshot_${timestamp}.png`;
-    
+
     try {
       // Capture screenshot with optimized settings for speed and size
       await this.executeCommand(
@@ -1016,14 +1098,16 @@ class WebRTCService {
       // Cleanup files in background
       setImmediate(async () => {
         await Promise.all([
-          fs.remove(localPath).catch(err => 
-            console.warn(`Failed to remove local screenshot: ${err.message}`)
-          ),
+          fs
+            .remove(localPath)
+            .catch((err) =>
+              console.warn(`Failed to remove local screenshot: ${err.message}`)
+            ),
           this.executeCommand(
             `"${this.adbPath}" -s ${deviceId} shell rm -f ${tempFile}`
-          ).catch(err => 
+          ).catch((err) =>
             console.warn(`Failed to cleanup device screenshot: ${err.message}`)
-          )
+          ),
         ]);
       });
 
@@ -1034,9 +1118,37 @@ class WebRTCService {
       this.executeCommand(
         `"${this.adbPath}" -s ${deviceId} shell rm -f ${tempFile}`
       ).catch(() => {});
-      
+
       throw error;
     }
+  }
+
+  // Clean up stale data when emulator is restarted
+  async cleanupStaleData(emulatorName) {
+    console.log(`🧹 Cleaning up stale data for ${emulatorName}`);
+
+    // Remove any existing active recordings
+    if (this.activeRecordings.has(emulatorName)) {
+      const recording = this.activeRecordings.get(emulatorName);
+      if (recording && recording.deviceId) {
+        // Clean up device locks
+        this.deviceRecordingLocks.delete(recording.deviceId);
+        this.deviceLockTimestamps.delete(recording.deviceId);
+        console.log(`🧹 Removed device locks for ${recording.deviceId}`);
+      }
+      this.activeRecordings.delete(emulatorName);
+      console.log(`🧹 Removed stale recording for ${emulatorName}`);
+    }
+
+    // Remove cached device mapping to force refresh
+    if (this.deviceMappings.has(emulatorName)) {
+      this.deviceMappings.delete(emulatorName);
+      console.log(`🧹 Removed cached device mapping for ${emulatorName}`);
+    }
+
+    // Force refresh of all mappings to get updated device IDs
+    await this.refreshEmulatorMappings();
+    console.log(`🔄 Refreshed emulator mappings after cleanup`);
   }
 
   // Handle socket disconnection

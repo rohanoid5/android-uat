@@ -158,7 +158,7 @@ function EmulatorPage() {
   return (
     <div className="max-w-6xl mx-auto">
       {/* Header with back button and emulator info */}
-      <div className="flex items-center justify-between mb-8">
+      {/* <div className="flex items-center justify-between mb-8">
         <div className="flex items-center">
           <button
             onClick={handleBackToList}
@@ -199,7 +199,6 @@ function EmulatorPage() {
           </div>
         </div>
 
-        {/* Start button if emulator is stopped */}
         {currentStatus === "stopped" && (
           <button
             onClick={handleStartEmulator}
@@ -219,7 +218,7 @@ function EmulatorPage() {
             )}
           </button>
         )}
-      </div>
+      </div> */}
 
       {/* Emulator content */}
       {currentStatus === "running" ? (

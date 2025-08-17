@@ -70,7 +70,7 @@ function EmulatorDashboard({ emulator }) {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Emulator Status and Controls Header */}
-      <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
+      {/* <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div>
@@ -145,10 +145,10 @@ function EmulatorDashboard({ emulator }) {
             )}
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Tab Navigation */}
-      <div className="bg-white rounded-lg shadow-sm mb-6">
+      <div className="bg-white rounded-t-lg shadow-sm">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             {tabs.map((tab) => (
@@ -170,17 +170,23 @@ function EmulatorDashboard({ emulator }) {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className="bg-white shadow-sm">
         {activeTab === "screen" && (
-          <div className="p-6">
+          <div className="pb-6">
             {currentStatus === "running" ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 <div className="lg:col-span-2">
-                  <EmulatorScreen emulator={emulator} />
+                  <EmulatorScreen
+                    emulator={emulator}
+                    handleStopEmulator={handleStopEmulator}
+                    currentStatus={currentStatus}
+                    emulatorLoading={emulatorLoading}
+                    handleStartEmulator={handleStartEmulator}
+                  />
                 </div>
-                <div>
+                {/* <div>
                   <EmulatorControls emulator={emulator} />
-                </div>
+                </div> */}
               </div>
             ) : (
               <div className="text-center py-12">
