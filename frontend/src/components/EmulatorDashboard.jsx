@@ -4,6 +4,7 @@ import { PlayIcon, StopIcon, PowerIcon } from "@heroicons/react/24/outline";
 import EmulatorScreen from "./EmulatorScreen";
 import EmulatorControls from "./EmulatorControls";
 import AppManager from "./AppManager";
+import OptimizedEmulatorScreen from "./OptimizedEmulatorScreen";
 
 function EmulatorDashboard({ emulator }) {
   const {
@@ -176,7 +177,14 @@ function EmulatorDashboard({ emulator }) {
             {currentStatus === "running" ? (
               <div className="grid grid-cols-1 gap-6">
                 <div className="lg:col-span-2">
-                  <EmulatorScreen
+                  {/* <EmulatorScreen
+                    emulator={emulator}
+                    handleStopEmulator={handleStopEmulator}
+                    currentStatus={currentStatus}
+                    emulatorLoading={emulatorLoading}
+                    handleStartEmulator={handleStartEmulator}
+                  /> */}
+                  <OptimizedEmulatorScreen
                     emulator={emulator}
                     handleStopEmulator={handleStopEmulator}
                     currentStatus={currentStatus}

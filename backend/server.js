@@ -5,6 +5,7 @@ const cors = require("cors");
 const path = require("path");
 const EmulatorController = require("./controllers/EmulatorController");
 const WebRTCService = require("./services/WebRTCService");
+const ScreenCaptureService = require("./services/ScreenCaptureServiceV2");
 
 const app = express();
 const server = http.createServer(app);
@@ -23,8 +24,9 @@ app.use(express.json());
 app.use(express.static("public"));
 
 // Initialize services
-const webRTCService = new WebRTCService(io);
-const emulatorController = new EmulatorController(io, webRTCService);
+// const webRTCService = new WebRTCService(io);
+const screenCaptureService = new ScreenCaptureService(io);
+const emulatorController = new EmulatorController(io, screenCaptureService);
 
 // Serve static files from React build
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
@@ -37,8 +39,10 @@ app.get("/api/health", (req, res) => {
 // Add debugging endpoint for streaming status
 app.get("/api/streaming/status", (req, res) => {
   try {
-    const status = webRTCService.getStreamingStatus();
-    const emulatorMappings = Array.from(webRTCService.deviceMappings.entries());
+    const status = screenCaptureService.getStreamingStatus();
+    const emulatorMappings = Array.from(
+      screenCaptureService.deviceMappings.entries()
+    );
 
     res.json({
       ...status,
@@ -56,11 +60,13 @@ app.post("/api/streaming/refresh", async (req, res) => {
     console.log("🔄 Manual refresh requested via API");
 
     // Refresh emulator mappings
-    await webRTCService.refreshEmulatorMappings();
+    await screenCaptureService.refreshEmulatorMappings();
 
     // Get updated status
-    const status = webRTCService.getStreamingStatus();
-    const emulatorMappings = Array.from(webRTCService.deviceMappings.entries());
+    const status = screenCaptureService.getStreamingStatus();
+    const emulatorMappings = Array.from(
+      screenCaptureService.deviceMappings.entries()
+    );
 
     res.json({
       message: "Emulator mappings refreshed successfully",
@@ -81,13 +87,13 @@ app.post("/api/streaming/restart/:emulatorName", async (req, res) => {
     console.log(`🔄 Manual restart requested for ${emulatorName}`);
 
     // Stop existing recording
-    webRTCService.stopRecording(emulatorName);
+    // screenCaptureService.stopRecording(emulatorName);
 
     // Wait a moment for cleanup
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Start new recording
-    await webRTCService.startRecording(emulatorName);
+    // await screenCaptureService.startRecording(emulatorName);
 
     res.json({
       message: `Stream restarted successfully for ${emulatorName}`,
@@ -364,7 +370,7 @@ io.on("connection", (socket) => {
     console.log(`👥 Socket ${socket.id} joined room: ${roomName}`);
 
     // Start stream with room-based broadcasting
-    webRTCService.startScreenStream(socket, emulatorName);
+    screenCaptureService.startOptimizedStream(socket, emulatorName);
   });
 
   socket.on("stop-screen-stream", () => {
@@ -377,7 +383,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    webRTCService.stopScreenStream(socket);
+    screenCaptureService.stopStream(socket);
   });
 
   // Handle emulator input (tap, swipe, etc.)
@@ -411,7 +417,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("Client disconnected:", socket.id);
     // Rooms are automatically cleaned up on disconnect
-    webRTCService.handleSocketDisconnect(socket);
+    screenCaptureService.handleSocketDisconnect(socket);
   });
 });
 
@@ -423,13 +429,13 @@ app.get("*", (req, res) => {
 // Cleanup on server shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, cleaning up WebRTC streams...");
-  webRTCService.cleanup();
+  screenCaptureService.cleanup();
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
   console.log("SIGINT received, cleaning up WebRTC streams...");
-  webRTCService.cleanup();
+  screenCaptureService.cleanup();
   process.exit(0);
 });
 

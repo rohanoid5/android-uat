@@ -205,7 +205,7 @@ class WebRTCService {
             "--time-limit",
             "0.5", // Reduced to 0.5 second chunks for faster streaming
             "--bit-rate",
-            "300000", // Reduced to 300K for much smaller file sizes
+            "50000", // Reduced to 50K for much smaller file sizes
             "--size",
             deviceResolution, // Use dynamically detected resolution for better aspect ratio
             deviceTempFile, // Unique temp file on device
