@@ -20,16 +20,12 @@ class ScreenCaptureService {
     this.adbPath =
       process.env.ADB_PATH || `${this.androidHome}/platform-tools/adb`;
 
-    console.log("🚀 Optimized WebRTC Service initialized");
+    console.log("Optimized Screen Capture Service initialized");
 
-    // Initialize with better emulator discovery
     this.refreshEmulatorMappings();
-
-    // Start periodic cleanup
     this.startPeriodicCleanup();
   }
 
-  // OPTIMIZED SCREENSHOT CAPTURE - No file I/O
   async captureOptimizedScreenshot(deviceId, quality = 70) {
     try {
       // Use exec-out for direct streaming - no file operations
@@ -53,7 +49,6 @@ class ScreenCaptureService {
     }
   }
 
-  // OPTIMIZED COMMAND EXECUTION
   async executeCommandWithOutput(command) {
     return new Promise((resolve, reject) => {
       const child = spawn("sh", ["-c", command], {
@@ -90,7 +85,6 @@ class ScreenCaptureService {
     });
   }
 
-  // DELTA COMPRESSION for Screenshots
   async captureWithDelta(deviceId, quality = 70) {
     const currentBuffer = await this.captureOptimizedScreenshot(
       deviceId,
@@ -116,7 +110,6 @@ class ScreenCaptureService {
     };
   }
 
-  // BATCHED INPUT PROCESSING
   async processInputBatch(deviceId, inputs) {
     if (this.processingInputs.has(deviceId)) {
       return { success: false, reason: "Device busy processing inputs" };
@@ -150,7 +143,6 @@ class ScreenCaptureService {
     }
   }
 
-  // OPTIMIZED STREAMING LOOP
   async startOptimizedStream(socket, emulatorName) {
     try {
       const deviceId = await this.checkEmulatorReady(emulatorName);
@@ -160,11 +152,11 @@ class ScreenCaptureService {
 
       const viewerCount =
         this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
-      console.log(`📺 ${viewerCount} viewers watching ${emulatorName}`);
+      console.log(`${viewerCount} viewers watching ${emulatorName}`);
 
       // Start streaming if not already active
       if (!this.activeStreams.has(emulatorName)) {
-        console.log(`🎬 Starting optimized stream for ${emulatorName}`);
+        console.log(`Starting optimized stream for ${emulatorName}`);
 
         this.activeStreams.set(emulatorName, {
           deviceId,
@@ -192,7 +184,7 @@ class ScreenCaptureService {
   }
 
   async optimizedStreamingLoop(emulatorName, deviceId) {
-    console.log(`🔄 Starting optimized streaming loop for ${emulatorName}`);
+    console.log(`Starting optimized streaming loop for ${emulatorName}`);
 
     const roomName = `emulator:${emulatorName}`;
     let consecutiveErrors = 0;
@@ -208,7 +200,7 @@ class ScreenCaptureService {
         const viewerCount =
           this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
         if (viewerCount === 0) {
-          console.log(`⚠️ No viewers for ${emulatorName}, stopping stream`);
+          console.log(`No viewers for ${emulatorName}, stopping stream`);
           break;
         }
 
@@ -234,7 +226,7 @@ class ScreenCaptureService {
           });
 
           console.log(
-            `📡 Broadcasted ${result.size} bytes to ${viewerCount} viewers`
+            `Broadcasted ${result.size} bytes to ${viewerCount} viewers`
           );
         }
 
@@ -255,9 +247,7 @@ class ScreenCaptureService {
         );
 
         if (consecutiveErrors >= maxErrors) {
-          console.error(
-            `💥 Too many errors for ${emulatorName}, stopping stream`
-          );
+          console.error(`Too many errors for ${emulatorName}, stopping stream`);
           this.io.to(roomName).emit("streamError", {
             error: `Stream failed: ${error.message}`,
             emulator: emulatorName,
@@ -274,10 +264,9 @@ class ScreenCaptureService {
 
     // Cleanup
     this.cleanupStream(emulatorName);
-    console.log(`🏁 Optimized streaming loop ended for ${emulatorName}`);
+    console.log(`Optimized streaming loop ended for ${emulatorName}`);
   }
 
-  // HANDLE BATCHED INPUTS
   handleEmulatorInput(emulatorName, inputData) {
     const deviceId = this.deviceMappings.get(emulatorName);
     if (!deviceId) {
@@ -300,7 +289,6 @@ class ScreenCaptureService {
     return { success: true };
   }
 
-  // OPTIMIZED EMULATOR DISCOVERY
   async refreshEmulatorMappings() {
     try {
       const { stdout } = await execAsync(`"${this.adbPath}" devices -l`);
@@ -323,10 +311,10 @@ class ScreenCaptureService {
       this.deviceMappings.clear();
       devices.forEach(({ deviceId, avdName }) => {
         this.deviceMappings.set(avdName, deviceId);
-        console.log(`📌 Mapped: ${avdName} → ${deviceId}`);
+        console.log(`Mapped: ${avdName} → ${deviceId}`);
       });
 
-      console.log(`✅ Cached ${devices.length} emulator mappings`);
+      console.log(`Cached ${devices.length} emulator mappings`);
     } catch (error) {
       console.error("Failed to refresh emulator mappings:", error.message);
     }
@@ -336,10 +324,8 @@ class ScreenCaptureService {
     const requested = requestedName.toLowerCase().replace(/[^a-z0-9]/g, "");
     const avd = avdName.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    // Direct match
     if (requested === avd) return true;
 
-    // Partial match (either contains the other)
     if (requested.includes(avd) || avd.includes(requested)) return true;
 
     // Handle common patterns like "PhonePe-Stage-V2" vs "phonepe_stage_v2"
@@ -353,7 +339,6 @@ class ScreenCaptureService {
     );
   }
 
-  // Verify a device is still online
   async verifyDeviceOnline(deviceId) {
     return new Promise((resolve) => {
       exec(`"${this.adbPath}" -s ${deviceId} shell echo "test"`, (error) => {
@@ -363,57 +348,49 @@ class ScreenCaptureService {
   }
 
   async checkEmulatorReady(emulatorName) {
-    // First check cache
     if (this.deviceMappings.has(emulatorName)) {
       const cachedDeviceId = this.deviceMappings.get(emulatorName);
-      console.log(
-        `📋 Using cached mapping: ${emulatorName} → ${cachedDeviceId}`
-      );
+      console.log(`Using cached mapping: ${emulatorName} → ${cachedDeviceId}`);
 
-      // Verify the device is still online and responding
       const isOnline = await this.verifyDeviceOnline(cachedDeviceId);
       if (isOnline) {
-        // Additional check: verify the device is actually the emulator we want
         try {
           const avdName = await this.getAvdName(cachedDeviceId);
           if (this.isEmulatorNameMatch(emulatorName, avdName)) {
             return cachedDeviceId;
           } else {
             console.log(
-              `⚠️ Cached device ${cachedDeviceId} is now different emulator (${avdName}), refreshing...`
+              `Cached device ${cachedDeviceId} is now different emulator (${avdName}), refreshing...`
             );
             this.deviceMappings.delete(emulatorName);
           }
         } catch (error) {
           console.log(
-            `⚠️ Cannot verify cached device ${cachedDeviceId}, refreshing mappings...`
+            `Cannot verify cached device ${cachedDeviceId}, refreshing mappings...`
           );
           this.deviceMappings.delete(emulatorName);
         }
       } else {
         console.log(
-          `⚠️ Cached device ${cachedDeviceId} is offline, refreshing mappings...`
+          `Cached device ${cachedDeviceId} is offline, refreshing mappings...`
         );
         this.deviceMappings.delete(emulatorName);
       }
     }
 
-    // If not in cache or device is offline, refresh and search
     await this.refreshEmulatorMappings();
 
     if (this.deviceMappings.has(emulatorName)) {
       const deviceId = this.deviceMappings.get(emulatorName);
-      console.log(`✅ Found after refresh: ${emulatorName} → ${deviceId}`);
+      console.log(`Found after refresh: ${emulatorName} → ${deviceId}`);
       return deviceId;
     }
 
-    // Try fuzzy matching if exact name not found
     for (const [cachedName, deviceId] of this.deviceMappings) {
       if (this.isEmulatorNameMatch(emulatorName, cachedName)) {
         console.log(
-          `🔍 Fuzzy match found: ${emulatorName} ≈ ${cachedName} → ${deviceId}`
+          `Fuzzy match found: ${emulatorName} ≈ ${cachedName} → ${deviceId}`
         );
-        // Cache this match for faster future lookups
         this.deviceMappings.set(emulatorName, deviceId);
         return deviceId;
       }
@@ -428,7 +405,6 @@ class ScreenCaptureService {
 
   async getAvdName(deviceId) {
     return new Promise((resolve, reject) => {
-      // Try primary property first
       exec(
         `"${this.adbPath}" -s ${deviceId} shell getprop ro.kernel.qemu.avd_name`,
         (error, stdout) => {
@@ -437,7 +413,6 @@ class ScreenCaptureService {
             return;
           }
 
-          // Try alternative property
           exec(
             `"${this.adbPath}" -s ${deviceId} shell getprop ro.boot.qemu.avd_name`,
             (error2, stdout2) => {
@@ -446,7 +421,6 @@ class ScreenCaptureService {
                 return;
               }
 
-              // Try getting device model as fallback
               exec(
                 `"${this.adbPath}" -s ${deviceId} shell getprop ro.product.model`,
                 (error3, stdout3) => {
@@ -508,20 +482,19 @@ class ScreenCaptureService {
         this.inputQueue.delete(stream.deviceId);
       }
 
-      console.log(`🧹 Cleaned up stream for ${emulatorName}`);
+      console.log(`Cleaned up stream for ${emulatorName}`);
     }
   }
 
   startPeriodicCleanup() {
     setInterval(() => {
-      // Clean up inactive streams
       for (const [emulatorName, stream] of this.activeStreams) {
         const roomName = `emulator:${emulatorName}`;
         const viewerCount =
           this.io.sockets.adapter.rooms.get(roomName)?.size || 0;
 
         if (viewerCount === 0) {
-          console.log(`🧹 Cleaning up inactive stream: ${emulatorName}`);
+          console.log(`Cleaning up inactive stream: ${emulatorName}`);
           this.cleanupStream(emulatorName);
         }
       }

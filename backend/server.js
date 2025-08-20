@@ -75,7 +75,7 @@ app.post("/api/streaming/refresh", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("❌ Failed to refresh mappings:", error);
+    console.error("Failed to refresh mappings:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -84,7 +84,7 @@ app.post("/api/streaming/refresh", async (req, res) => {
 app.post("/api/streaming/restart/:emulatorName", async (req, res) => {
   try {
     const { emulatorName } = req.params;
-    console.log(`🔄 Manual restart requested for ${emulatorName}`);
+    console.log(`Manual restart requested for ${emulatorName}`);
 
     // Stop existing recording
     // screenCaptureService.stopRecording(emulatorName);
@@ -102,7 +102,7 @@ app.post("/api/streaming/restart/:emulatorName", async (req, res) => {
     });
   } catch (error) {
     console.error(
-      `❌ Failed to restart stream for ${req.params.emulatorName}:`,
+      `Failed to restart stream for ${req.params.emulatorName}:`,
       error
     );
     res.status(500).json({ error: error.message });
@@ -360,9 +360,7 @@ io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
   socket.on("start-screen-stream", (emulatorName) => {
-    console.log(
-      `🎬 Socket ${socket.id} requesting stream for: ${emulatorName}`
-    );
+    console.log(`Socket ${socket.id} requesting stream for: ${emulatorName}`);
 
     // Join emulator-specific room
     const roomName = `emulator:${emulatorName}`;
@@ -379,7 +377,7 @@ io.on("connection", (socket) => {
     rooms.forEach((room) => {
       if (room.startsWith("emulator:")) {
         socket.leave(room);
-        console.log(`👋 Socket ${socket.id} left room: ${room}`);
+        console.log(`Socket ${socket.id} left room: ${room}`);
       }
     });
 
@@ -394,7 +392,7 @@ io.on("connection", (socket) => {
       const { emulatorName, action, coordinates, text } = data;
 
       if (!emulatorName) {
-        console.error("❌ No emulator name provided for input");
+        console.error("No emulator name provided for input");
         socket.emit("input-error", { error: "Emulator name is required" });
         return;
       }
@@ -406,10 +404,10 @@ io.on("connection", (socket) => {
         text
       );
 
-      console.log(`✅ Input sent successfully to ${emulatorName}:`, result);
+      console.log(`Input sent successfully to ${emulatorName}:`, result);
       socket.emit("input-success", result);
     } catch (error) {
-      console.error(`❌ Input failed for ${socket.id}:`, error.message);
+      console.error(`Input failed for ${socket.id}:`, error.message);
       socket.emit("input-error", { error: error.message });
     }
   });

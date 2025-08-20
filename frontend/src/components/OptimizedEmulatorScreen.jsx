@@ -21,7 +21,6 @@ import {
 import FeedbackModal from "./FeedbackModal";
 import EmulatorStartStopButton from "./EmulatorStartStopButton";
 
-// Memoized Canvas Component for better performance
 const EmulatorCanvas = React.memo(
   ({
     canvasRef,
@@ -56,15 +55,14 @@ function OptimizedEmulatorScreen({
   handleStopEmulator,
 }) {
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
   const { socket, error } = useEmulator();
   const [isInteracting, setIsInteracting] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statsUpdate, setStatsUpdate] = useState(0); // Force re-render when stats update
 
-  // Use refs for performance metrics that don't need re-renders
   const streamStatsRef = useRef({
     lastUpdate: null,
     frameCount: 0,
@@ -72,11 +70,9 @@ function OptimizedEmulatorScreen({
     fps: 0,
   });
 
-  // Input batching refs
   const inputQueueRef = useRef([]);
   const inputTimeoutRef = useRef(null);
 
-  // OPTIMIZED CANVAS SETUP
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -92,60 +88,65 @@ function OptimizedEmulatorScreen({
     ctx.imageSmoothingQuality = "medium"; // Balance quality/performance
   }, []);
 
-  // OPTIMIZED IMAGE RENDERING
-  const handleDirectImageRender = useCallback(async (base64Data) => {
-    if (!canvasRef.current) return;
+  const handleDirectImageRender = useCallback(
+    async (base64Data) => {
+      if (!canvasRef.current) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
 
-    try {
-      // Convert base64 to blob for createImageBitmap
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      try {
+        // Convert base64 to blob for createImageBitmap
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
 
-      const blob = new Blob([bytes], { type: "image/jpeg" });
+        const blob = new Blob([bytes], { type: "image/jpeg" });
 
-      // Use createImageBitmap for better performance
-      if (window.createImageBitmap) {
-        const bitmap = await createImageBitmap(blob);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        bitmap.close(); // Free memory
-      } else {
-        // Fallback for browsers without createImageBitmap
-        const img = new Image();
-        img.onload = () => {
+        if (window.createImageBitmap) {
+          const bitmap = await createImageBitmap(blob);
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        };
-        img.src = `data:image/jpeg;base64,${base64Data}`;
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close(); // Free memory
+        } else {
+          // Fallback for browsers without createImageBitmap
+          const img = new Image();
+          img.onload = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          };
+          img.src = `data:image/jpeg;base64,${base64Data}`;
+        }
+
+        // Update stats and trigger re-render
+        streamStatsRef.current.frameCount++;
+        streamStatsRef.current.lastUpdate = new Date().toLocaleTimeString();
+
+        // Calculate FPS every 30 frames and trigger UI update
+        if (streamStatsRef.current.frameCount % 30 === 0) {
+          const now = Date.now();
+          const elapsed = (now - streamStatsRef.current.startTime) / 1000;
+          streamStatsRef.current.fps = Math.round(
+            streamStatsRef.current.frameCount / elapsed
+          );
+          // Trigger re-render for FPS update
+          setStatsUpdate((prev) => prev + 1);
+        } else if (streamStatsRef.current.frameCount % 5 === 0) {
+          // Trigger re-render every 5 frames for lastUpdate display
+          setStatsUpdate((prev) => prev + 1);
+        }
+
+        setIsStreaming(true);
+        setStreamError(null);
+      } catch (error) {
+        console.error("Image rendering error:", error);
       }
+    },
+    [setStatsUpdate]
+  );
 
-      // Update stats without triggering re-render
-      streamStatsRef.current.frameCount++;
-      streamStatsRef.current.lastUpdate = new Date().toLocaleTimeString();
-
-      // Calculate FPS every 30 frames
-      if (streamStatsRef.current.frameCount % 30 === 0) {
-        const now = Date.now();
-        const elapsed = (now - streamStatsRef.current.startTime) / 1000;
-        streamStatsRef.current.fps = Math.round(
-          streamStatsRef.current.frameCount / elapsed
-        );
-      }
-
-      setIsStreaming(true);
-      setStreamError(null);
-    } catch (error) {
-      console.error("Image rendering error:", error);
-    }
-  }, []);
-
-  // OPTIMIZED INPUT BATCHING
   const sendBatchedInput = useCallback(() => {
     if (inputQueueRef.current.length === 0 || !socket) return;
 
@@ -179,7 +180,6 @@ function OptimizedEmulatorScreen({
     [sendBatchedInput]
   );
 
-  // SOCKET EVENT HANDLING
   useEffect(() => {
     if (!socket || !emulator) return;
 
@@ -198,11 +198,11 @@ function OptimizedEmulatorScreen({
     };
 
     const handleInputSuccess = (result) => {
-      console.log("✅ Input success:", result);
+      console.log("Input success:", result);
     };
 
     const handleInputError = (error) => {
-      console.error("❌ Input error:", error);
+      console.error("Input error:", error);
     };
 
     // Socket event listeners
@@ -228,7 +228,6 @@ function OptimizedEmulatorScreen({
     };
   }, [socket, emulator, handleDirectImageRender]);
 
-  // STREAMING CONTROLS
   const startStreaming = useCallback(() => {
     if (!socket || !emulator) return;
 
@@ -241,6 +240,9 @@ function OptimizedEmulatorScreen({
       startTime: Date.now(),
       fps: 0,
     };
+
+    // Reset stats update counter to trigger initial UI update
+    setStatsUpdate(0);
 
     socket.emit("start-screen-stream", emulator.name);
     setIsStreaming(true);
@@ -285,7 +287,6 @@ function OptimizedEmulatorScreen({
     }
   }, [emulator, isRefreshing, isStreaming, stopStreaming, startStreaming]);
 
-  // OPTIMIZED COORDINATE CALCULATION
   const getCoordinates = useCallback((event) => {
     if (!canvasRef.current) return null;
 
@@ -321,7 +322,6 @@ function OptimizedEmulatorScreen({
     };
   }, []);
 
-  // OPTIMIZED INPUT HANDLERS
   const handleClick = useCallback(
     (event) => {
       if (!socket || isInteracting) return;
@@ -481,20 +481,17 @@ function OptimizedEmulatorScreen({
     [isInteracting, getCoordinates, queueInput]
   );
 
-  // MEMOIZED STATUS DISPLAY
   const statusDisplay = useMemo(() => {
     const stats = streamStatsRef.current;
 
-    console.log(stats);
     return {
       status: isStreaming ? "🔴 Live" : "⭕ Offline",
       lastUpdate: stats.lastUpdate,
       fps: stats.fps,
       frameCount: stats.frameCount,
     };
-  }, [isStreaming, streamStatsRef.current.frameCount]);
+  }, [isStreaming, statsUpdate]); // Use statsUpdate instead of frameCount
 
-  // CLEANUP ON UNMOUNT
   useEffect(() => {
     return () => {
       if (inputTimeoutRef.current) {
